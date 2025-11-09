@@ -5,10 +5,11 @@ import mysql.connector
 app=Flask(__name__)
 
 data_base={
-'host': 'localhost',
+'host': '192.168.0.115',
     'database': 'inventar_it',
-    'user': 'root',
-    'password': 'parola_ta_aici'
+    'user': 'testuser',
+    'password': 'parola_ta',
+    'port': 3306
 }
 
 
@@ -30,4 +31,4 @@ def get_echipamente():
         return jsonify({"eroare": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, host='0.0.0.0')
