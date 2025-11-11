@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventar IT - Listă Echipamente</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+<body>
+
+    <header>
+        <h1><i class="fa-solid fa-desktop"></i> Evidență Echipamente IT</h1>
+    </header>
+
+    <main class="container">
+
+        <div class="page-actions">
+            <h2><i class="fa-solid fa-list-ul"></i> Echipamente și Periferice</h2>
+            <a href="select_type.html" class="btn btn-adauga"><i class="fa-solid fa-plus"></i> Adaugă Articol Nou</a>
+        </div>
+
+        <section class="filtre">
+            <h3><i class="fa-solid fa-filter"></i> Filtre Căutare</h3>
+
+            <div class="input-with-icon">
+                <i class="fa-solid fa-hashtag"></i>
+                <input type="text" id="filtru-inventar" placeholder="Nr. Inventar...">
+            </div>
+
+            <div class="input-with-icon">
+                <i class="fa-solid fa-user"></i>
+                <input type="text" id="filtru-utilizator" placeholder="Utilizator...">
+            </div>
+
+            <div class="input-with-icon">
+                <i class="fa-solid fa-building"></i>
+                <select id="filtru-locatie">
+                    <option value="">Toate Locațiile</option>
+                    <option value="Etaj 1">Etaj 1</option>
+                    <option value="Etaj 2">Etaj 2</option>
+                </select>
+            </div>
+
+            <button id="btn-cauta" class="btn"><i class="fa-solid fa-search"></i> Caută</button>
+        </section>
+
+        <section class="lista-echipamente">
+
+            <table id="tabel-echipamente">
+                <thead>
+                    <tr>
+                        <th data-sort="NR_INVENTAR">Nr. Inventar</th>
+                        <th data-sort="CATEGORIE">Categorie</th>
+                        <th data-sort="TIP">Tip</th>
+                        <th data-sort="NUME">Nume</th>
+                        <th data-sort="UTILIZATOR">Utilizator</th>
+                        <th>Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody id="tabel-body">
+                    </tbody>
+            </table>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>© 2025 Parchetul de pe lângă Tribunalul Brașov. Toate drepturile rezervate. Aplicație internă de inventariere.</p>
+    </footer>
+
+    <script>
+        const API_GET_ALL = 'http://127.0.0.1:5000/api/assets/all';
+
+        function incarcaEchipamente(url) {
+            const tabelBody = document.getElementById('tabel-body');
+            tabelBody.innerHTML = '<tr><td colspan="6">Se încarcă...</td></tr>';
+
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    tabelBody.innerHTML = '';
+
+                    if (!data || data.length === 0) {
+                        tabelBody.innerHTML = '<tr><td colspan="6">Nu au fost găsite articole.</td></tr>';
+                        return;
+                    }
+
+                    data.forEach(item => {
+                        const rand = document.createElement('tr');
+                        rand.style.cursor = 'pointer';
+
+                        let itemType = 'echipament';
+                        if (item.CATEGORIE && item.CATEGORIE.toLowerCase().includes('periferic')) {
+                            itemType = 'periferic';
+                        }
+
+                        rand.addEventListener('click', () => {
+                            window.location.href = `detalii.html?id=${item.NR_INVENTAR}&type=${itemType}`;
+                        });
+
+                        rand.innerHTML = `
+                            <td>${item.NR_INVENTAR}</td>
+                            <td>${item.CATEGORIE || 'N/A'}</td>
+                            <td>${item.TIP || 'N/A'}</td>
+                            <td>${item.NUME || 'N/A'}</td>
+                            <td>${item.UTILIZATOR || 'N/A'}</td>
+                            <td><a href="detalii.html?id=${item.NR_INVENTAR}&type=${itemType}">Detalii</a></td>
+                        `;
+                        tabelBody.appendChild(rand);
+                    });
+                })
+                .catch(error => {
+                    console.error('Eroare la preluarea datelor:', error);
+                    tabelBody.innerHTML = `<tr><td colspan="6">Eroare la conectarea cu serverul API local. Asigură-te că 'main.py' rulează.</td></tr>`;
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            incarcaEchipamente(API_GET_ALL);
+
+            const btnCauta = document.getElementById('btn-cauta');
+
+            btnCauta.addEventListener('click', () => {
+                const filtruInventar = document.getElementById('filtru-inventar').value;
+                const filtruUtilizator = document.getElementById('filtru-utilizator').value;
+                const filtruLocatie = document.getElementById('filtru-locatie').value;
+
+                const params = new URLSearchParams();
+
+                if (filtruInventar) {
+                    params.append('nr_inventar', filtruInventar);
+                }
+                if (filtruUtilizator) {
+                    params.append('utilizator', filtruUtilizator);
+                }
+                if (filtruLocatie) {
+                    params.append('etaj', filtruLocatie);
+                }
+
+                const urlFiltrata = `${API_GET_ALL}?${params.toString()}`;
+
+                incarcaEchipamente(urlFiltrata);
+            });
+        });
+    </script>
+
+</body>
+</html>
