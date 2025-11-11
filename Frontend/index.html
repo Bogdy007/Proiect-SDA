@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventar IT - Listă Echipamente</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1>Evidență Echipamente IT - Parchet</h1>
+    </header>
+
+    <main class="container">
+
+        <section class="filtre">
+            <h3>Filtre Căutare</h3>
+            <input type="text" id="filtru-inventar" placeholder="Nr. Inventar...">
+            <input type="text" id="filtru-utilizator" placeholder="Utilizator...">
+            <select id="filtru-locatie">
+                <option value="">Toate Locațiile</option>
+                <option value="Etaj 1">Etaj 1</option>
+                <option value="Etaj 2">Etaj 2</option>
+            </select>
+            <button id="btn-cauta" class="btn">Caută</button>
+        </section>
+
+        <section class="lista-echipamente">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>Echipamente în Evidență</h2>
+                <a href="formular.html" class="btn btn-adauga">Adaugă Echipament</a>
+            </div>
+
+            <table id="tabel-echipamente">
+                <thead>
+                    <tr>
+                        <th data-sort="NR_INVENTAR">Nr. Inventar</th>
+                        <th data-sort="TIP_CALC">Tip Echipament</th>
+                        <th data-sort="NUME_PC">Nume PC</th>
+                        <th data-sort="UTILIZATOR">Utilizator</th>
+                        <th data-sort="DATA_ACHIZITIE">Data Achiziție</th>
+                        <th>Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody id="tabel-body">
+                    </tbody>
+            </table>
+        </section>
+    </main>
+
+    <script>
+        const API_GET_ALL = 'http://127.0.0.1:5000/api/echipamente';
+
+        function incarcaEchipamente(url) {
+            const tabelBody = document.getElementById('tabel-body');
+            tabelBody.innerHTML = '<tr><td colspan="6">Se încarcă...</td></tr>';
+
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    tabelBody.innerHTML = '';
+
+                    if (!data || data.length === 0) {
+                        tabelBody.innerHTML = '<tr><td colspan="6">Nu au fost găsite echipamente.</td></tr>';
+                        return;
+                    }
+
+                    data.forEach(echipament => {
+                        const rand = document.createElement('tr');
+                        rand.style.cursor = 'pointer';
+                        rand.addEventListener('click', () => {
+                            window.location.href = `detalii.html?id=${echipament.NR_INVENTAR}`;
+                        });
+
+                        rand.innerHTML = `
+                            <td>${echipament.NR_INVENTAR}</td>
+                            <td>${echipament.TIP_CALC || 'N/A'}</td>
+                            <td>${echipament.NUME_PC || 'N/A'}</td>
+                            <td>${echipament.UTILIZATOR || 'N/A'}</td>
+                            <td>${echipament.DATA_ACHIZITIE || 'N/A'}</td>
+                            <td><a href="detalii.html?id=${echipament.NR_INVENTAR}">Detalii</a></td>
+                        `;
+                        tabelBody.appendChild(rand);
+                    });
+                })
+                .catch(error => {
+                    console.error('Eroare la preluarea datelor:', error);
+                    tabelBody.innerHTML = `<tr><td colspan="6">Eroare la conectarea cu serverul API local. Asigură-te că 'main.py' rulează.</td></tr>`;
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            incarcaEchipamente(API_GET_ALL);
+
+            const btnCauta = document.getElementById('btn-cauta');
+
+            btnCauta.addEventListener('click', () => {
+                const filtruInventar = document.getElementById('filtru-inventar').value;
+                const filtruUtilizator = document.getElementById('filtru-utilizator').value;
+                const filtruLocatie = document.getElementById('filtru-locatie').value;
+
+                const params = new URLSearchParams();
+
+                if (filtruInventar) {
+                    params.append('nr_inventar', filtruInventar);
+                }
+                if (filtruUtilizator) {
+                    params.append('utilizator', filtruUtilizator);
+                }
+                if (filtruLocatie) {
+                    params.append('etaj', filtruLocatie);
+                }
+
+                const urlFiltrata = `${API_GET_ALL}?${params.toString()}`;
+
+                incarcaEchipamente(urlFiltrata);
+            });
+        });
+    </script>
+
+</body>
+</html>
