@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalii Echipament</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1 id="titlu-echipament">Detalii Echipament: ...</h1>
+        <a href="index.html" style="margin-left: 20px;">&larr; Înapoi la listă</a>
+    </header>
+
+    <main class="container">
+
+        <div class="actions">
+            <button id="btn-genereaza-pdf" class="btn">Generează Fișă (PDF)</button>
+            <button id="btn-editeaza" class="btn">Editează Echipament</button>
+            <button id="btn-sterge" class="btn btn-danger">Șterge Echipament</button>
+        </div>
+
+        <section class="detalii-echipament">
+            <h2>Date Tehnice și administrative</h2>
+            <div class="detalii-grid" id="info-echipament">
+                <p><strong>Nr. Inventar:</strong> <span id="det-nr-inventar"></span></p>
+                <p><strong>Utilizator:</strong> <span id="det-utilizator"></span></p>
+                <p><strong>Nume PC:</strong> <span id="det-nume-pc"></span></p>
+                <p><strong>Tip Echipament:</strong> <span id="det-tip-calc"></span></p>
+                <p><strong>Etaj:</strong> <span id="det-etaj"></span></p>
+                <p><strong>Adresă IP:</strong> <span id="det-ip"></span></p>
+                <p><strong>Sistem Operare:</strong> <span id="det-so"></span></p>
+                <p><strong>Licență SO:</strong> <span id="det-licenta-so"></span></p>
+                <p><strong>Data Achiziție:</strong> <span id="det-data-achizitie"></span></p>
+                <p><strong>Observații:</strong> <span id="det-obs"></span></p>
+            </div>
+        </section>
+
+        <section id="istoric-interventii">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>Istoric Intervenții</h2>
+                <button id="btn-adauga-interventie" class="btn">Adaugă Intervenție Nouă</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Tip Intervenție</th>
+                        <th>Descriere</th>
+                        <th>Operator</th>
+                    </tr>
+                </thead>
+                <tbody id="interventii-body">
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <div id="modal-interventie" class="modal-backdrop">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Adaugă Intervenție Nouă</h2>
+                <span class="close-button" id="close-modal-btn">&times;</span>
+            </div>
+
+            <form id="form-interventie">
+                <div class="form-group">
+                    <label for="data-interventie">Data Intervenție</label>
+                    <input type="date" id="data-interventie" name="DATA_INTERVENTIE" required>
+                </div>
+                <div class="form-group">
+                    <label for="tip-interventie">Tip Intervenție (ex: Reparație, Instalare, Mentenanță)</label>
+                    <input type="text" id="tip-interventie" name="TIP_INTERVENTIE" required>
+                </div>
+                <div class="form-group">
+                    <label for="operator">Operator (Cine a efectuat?)</label>
+                    <input type="text" id="operator" name="OPERATOR" required>
+                </div>
+                <div class="form-group">
+                    <label for="descriere-interventie">Descrierea Intervenției</label>
+                    <textarea id="descriere-interventie" name="DESCRIERE_INTERVENTIE" rows="4"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn" id="cancel-modal-btn" style="background-color: #6c757d;">Anulează</button>
+                    <button type="submit" class="btn">Salvează Intervenție</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <script>
+        const API_ECHIPAMENTE_URL = 'http://127.0.0.1:5000/api/echipamente';
+        const API_INTERVENTII_URL = 'http://127.0.0.1:5000/api/interventii';
+
+        let nrInventarGlobal = null;
+
+        function incarcaDetaliiEchipament(nrInventar) {
+            document.getElementById('titlu-echipament').textContent = `Detalii Echipament: ${nrInventar}`;
+
+            fetch(`${API_ECHIPAMENTE_URL}`)
+                .then(response => response.json())
+                .then(listaCompleta => {
+                    const echipament = listaCompleta.find(item => item.NR_INVENTAR == nrInventar);
+                    if (echipament) {
+                        document.getElementById('det-nr-inventar').textContent = echipament.NR_INVENTAR;
+                        document.getElementById('det-utilizator').textContent = echipament.UTILIZATOR || 'N/A';
+                        document.getElementById('det-nume-pc').textContent = echipament.NUME_PC || 'N/A';
+                        document.getElementById('det-tip-calc').textContent = echipament.TIP_CALC || 'N/A';
+                        document.getElementById('det-etaj').textContent = echipament.ETAJ || 'N/A';
+                        document.getElementById('det-ip').textContent = echipament.IP || 'N/A';
+                        document.getElementById('det-so').textContent = echipament.SISTEM_OPERARE || 'N/A';
+                        document.getElementById('det-licenta-so').textContent = echipament.LICENTA_SO || 'N/A';
+                        document.getElementById('det-data-achizitie').textContent = echipament.DATA_ACHIZITIE || 'N/A';
+                        document.getElementById('det-obs').textContent = echipament.OBS || 'N/A';
+                    } else {
+                        document.getElementById('titlu-echipament').textContent = `Eroare: Echipamentul ${nrInventar} nu a fost găsit.`;
+                    }
+                })
+                .catch(error => console.error('Eroare detalii:', error));
+        }
+
+        function incarcaInterventii(nrInventar) {
+            const tabelBody = document.getElementById('interventii-body');
+            tabelBody.innerHTML = '<tr><td colspan="4">Se încarcă...</td></tr>';
+
+            fetch(`${API_INTERVENTII_URL}/${nrInventar}`)
+                .then(response => response.json())
+                .then(data => {
+                    tabelBody.innerHTML = '';
+                    if (data.eroare) {
+                        throw new Error(data.eroare);
+                    }
+                    if (data.length === 0) {
+                        tabelBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Nu există intervenții înregistrate.</td></tr>';
+                        return;
+                    }
+
+                    data.forEach(interventie => {
+                        const rand = document.createElement('tr');
+                        rand.innerHTML = `
+                            <td>${interventie.DATA_INTERVENTIE || 'N/A'}</td>
+                            <td>${interventie.TIP_INTERVENTIE || 'N/A'}</td>
+                            <td>${interventie.DESCRIERE_INTERVENTIE || 'N/A'}</td>
+                            <td>${interventie.OPERATOR || 'N/A'}</td>
+                        `;
+                        tabelBody.appendChild(rand);
+                    });
+                })
+                .catch(error => {
+                    console.error('Eroare la încărcarea intervențiilor:', error);
+                    tabelBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Eroare la încărcarea intervențiilor.</td></tr>`;
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const nrInventar = params.get('id');
+
+            if (nrInventar) {
+                nrInventarGlobal = nrInventar;
+
+                incarcaDetaliiEchipament(nrInventar);
+                incarcaInterventii(nrInventar);
+
+                document.getElementById('btn-genereaza-pdf').addEventListener('click', () => {
+                    window.open(`${API_ECHIPAMENTE_URL}/print/${nrInventar}`, '_blank');
+                });
+
+                document.getElementById('btn-editeaza').addEventListener('click', () => {
+                    window.location.href = `formular.html?id=${nrInventar}`;
+                });
+
+                document.getElementById('btn-sterge').addEventListener('click', () => {
+                    if (confirm(`Ești sigur că vrei să ștergi echipamentul ${nrInventar}?`)) {
+                        fetch(`${API_ECHIPAMENTE_URL}/delete/${nrInventar}`, { method: 'POST' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.succes) {
+                                alert(data.mesaj || 'Echipament șters!');
+                                window.location.href = 'index.html';
+                            } else {
+                                alert('Eroare la ștergere: ' + (data.eroare || 'Eroare'));
+                            }
+                        })
+                        .catch(error => alert('Eroare de rețea. Serverul nu a putut fi contactat.'));
+                    }
+                });
+
+                const modal = document.getElementById('modal-interventie');
+                const btnAdauga = document.getElementById('btn-adauga-interventie');
+                const btnInchide = document.getElementById('close-modal-btn');
+                const btnAnuleaza = document.getElementById('cancel-modal-btn');
+                const formInterventie = document.getElementById('form-interventie');
+
+                btnAdauga.addEventListener('click', () => {
+                    formInterventie.reset();
+                    modal.style.display = 'flex';
+                });
+
+                btnInchide.addEventListener('click', () => {
+                    modal.style.display = 'none';
+                });
+
+                btnAnuleaza.addEventListener('click', () => {
+                    modal.style.display = 'none';
+                });
+
+                formInterventie.addEventListener('submit', (e) => {
+                    e.preventDefault();
+
+                    const formData = new FormData(formInterventie);
+                    const dataObject = Object.fromEntries(formData.entries());
+                    dataObject.NR_INVENTAR = nrInventarGlobal;
+
+                    fetch(`${API_INTERVENTII_URL}/add`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(dataObject)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.succes) {
+                            alert('Intervenție adăugată cu succes!');
+                            modal.style.display = 'none';
+                            incarcaInterventii(nrInventarGlobal);
+                        } else {
+                            alert('Eroare la salvare: ' + (data.eroare || 'Eroare necunoscută'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Eroare de rețea:', error);
+                        alert('Eroare de rețea. Serverul nu a putut fi contactat.');
+                    });
+                });
+
+            } else {
+                document.getElementById('titlu-echipament').textContent = "Eroare: Nu a fost specificat niciun ID.";
+                document.querySelector('.container').innerHTML = '<h2>Vă rugăm selectați un echipament din <a href="index.html">lista principală</a>.</h2>';
+            }
+        });
+    </script>
+</body>
+</html>

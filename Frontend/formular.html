@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formular Echipament</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1 id="form-title">Adăugare Echipament Nou</h1>
+        <a href="index.html" style="margin-left: 20px;">&larr; Înapoi la listă</a>
+    </header>
+
+    <main class="container">
+        <div class="form-container">
+            <form id="form-echipament">
+
+                <div class="detalii-grid">
+                    <div class="form-group">
+                        <label for="nr-inventar">Număr Inventar (Primary Key)</label>
+                        <input type="text" id="nr-inventar" name="NR_INVENTAR" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="utilizator">Utilizator</label>
+                        <input type="text" id="utilizator" name="UTILIZATOR">
+                    </div>
+                    <div class="form-group">
+                        <label for="nume-pc">Nume PC</label>
+                        <input type="text" id="nume-pc" name="NUME_PC">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tip-calc">Tip Echipament (ex: PC, Laptop)</label>
+                        <input type="text" id="tip-calc" name="TIP_CALC">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="etaj">Etaj (ex: Etaj 1, Etaj 2)</label>
+                        <input type="text" id="etaj" name="ETAJ">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="data-achizitie">Data Achiziție</label>
+                        <input type="date" id="data-achizitie" name="DATA_ACHIZITIE">
+                    </div>
+                    <div class="form-group">
+                        <label for="ip">Adresă IP</label>
+                        <input type="text" id="ip" name="IP">
+                    </div>
+                    <div class="form-group">
+                        <label for="sistem-operare">Sistem de Operare</label>
+                        <input type="text" id="sistem-operare" name="SISTEM_OPERARE">
+                    </div>
+                    <div class="form-group">
+                        <label for="licenta-so">Licență SO</label>
+                        <input type="text" id="licenta-so" name="LICENTA_SO">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label for="obs">Observații</label>
+                    <textarea id="obs" name="OBS" rows="3"></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" onclick="window.location.href='index.html'">Anulează</button>
+                    <button type="submit" id="btn-salveaza">Salvează</button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:5000/api/echipamente';
+        const API_ADD_URL = `${API_BASE_URL}/add`;
+        const API_UPDATE_URL = `${API_BASE_URL}/update`;
+        const API_GET_ALL_URL = API_BASE_URL;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('form-echipament');
+            const titluFormular = document.getElementById('form-title');
+            const nrInventarInput = document.getElementById('nr-inventar');
+
+            const params = new URLSearchParams(window.location.search);
+            const nrInventar = params.get('id');
+
+            if (nrInventar) {
+                titluFormular.textContent = `Editare Echipament: ${nrInventar}`;
+                nrInventarInput.value = nrInventar;
+                nrInventarInput.readOnly = true;
+
+                fetch(API_GET_ALL_URL)
+                    .then(res => res.json())
+                    .then(data => {
+                        const echipament = data.find(e => e.NR_INVENTAR == nrInventar);
+                        if(echipament) {
+                            document.getElementById('utilizator').value = echipament.UTILIZATOR || '';
+                            document.getElementById('nume-pc').value = echipament.NUME_PC || '';
+                            document.getElementById('tip-calc').value = echipament.TIP_CALC || '';
+                            document.getElementById('etaj').value = echipament.ETAJ || '';
+                            document.getElementById('data-achizitie').value = echipament.DATA_ACHIZITIE || '';
+                            document.getElementById('ip').value = echipament.IP || '';
+                            document.getElementById('sistem-operare').value = echipament.SISTEM_OPERARE || '';
+                            document.getElementById('licenta-so').value = echipament.LICENTA_SO || '';
+                            document.getElementById('obs').value = echipament.OBS || '';
+                        }
+                    });
+
+            } else {
+                titluFormular.textContent = 'Adăugare Echipament Nou';
+            }
+
+            form.addEventListener('submit', function(event) {
+                event.preventDefault();
+                const formData = new FormData(form);
+                const dataObject = Object.fromEntries(formData.entries());
+
+                let targetURL;
+                const httpMethod = 'POST';
+
+                if (nrInventar) {
+                    targetURL = `${API_UPDATE_URL}/${nrInventar}`;
+                } else {
+                    targetURL = API_ADD_URL;
+                }
+
+                fetch(targetURL, {
+                    method: httpMethod,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dataObject)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.succes) {
+                        alert(data.mesaj || 'Operațiune reușită!');
+                        window.location.href = 'index.html';
+                    } else {
+                        alert('Eroare la salvare: ' + (data.eroare || 'Eroare necunoscută'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Eroare de rețea:', error);
+                    alert('Eroare de rețea. Asigură-te că serverul "main.py" rulează.');
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>
