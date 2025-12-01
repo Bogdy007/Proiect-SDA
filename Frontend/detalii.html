@@ -339,7 +339,6 @@
             document.getElementById('submit-modal-btn').innerHTML = '<i class="fa-solid fa-save"></i> Actualizează';
             document.getElementById('edit-interventie-id').value = id;
 
-            // Populare automată și cu posibilitate de editare
             document.getElementById('modal-nr-inventar').value = interventie.NR_INVENTAR;
             document.getElementById('modal-tip-echip').value = interventie.TIP_ECHIPAMENT;
 
@@ -413,7 +412,6 @@
 
                 formInterventie.querySelector('[name="DATA_INTERVENTIE"]').valueAsDate = new Date();
 
-                // Pre-populare cu numărul curent (dar editabil)
                 document.getElementById('modal-nr-inventar').value = nrInventarGlobal;
                 document.getElementById('modal-tip-echip').value = tipArticolGlobal;
                 modal.style.display = 'flex';
