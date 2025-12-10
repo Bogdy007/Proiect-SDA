@@ -1,4 +1,4 @@
-Inventar Echipamente IT — Frontend + API
+Inventar Echipamente IT — Frontend + Backend + API
 
 A small internal web application for tracking IT equipment and peripherals. The project contains a static frontend (HTML/CSS/vanilla JS) and a Python Flask backend that exposes a REST-style API and generates printable PDF sheets for assets.
 
