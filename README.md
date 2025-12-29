@@ -2,7 +2,7 @@
 
 > O aplicație web Full-Stack pentru digitalizarea și administrarea infrastructurii IT, dezvoltată pentru **Parchetul de pe lângă Tribunalul Brașov**.
 
-![Python](https://img.shields.io/badge/Python-3.10-blue?style=for-the-badge&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.13-blue?style=for-the-badge&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-2.0-black?style=for-the-badge&logo=flask&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-orange?style=for-the-badge&logo=mysql&logoColor=white)
 ![Frontend](https://img.shields.io/badge/HTML5%20%26%20CSS3-Glassmorphism-pink?style=for-the-badge)
