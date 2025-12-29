@@ -8,7 +8,7 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 import functools
 
-# --- INITIALIZARE FLASK ---
+# --- 1. CONFIGURARE APLICAȚIE ---
 app = Flask(__name__, static_url_path='', static_folder='.')
 app.secret_key = 'cheie_secreta_foarte_complexa_aici'
 CORS(app)
@@ -20,11 +20,10 @@ def add_header(response):
     response.headers["Expires"] = "0"
     return response
 
-# --- CONFIGURARE CALE FONT ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_PATH = os.path.join(BASE_DIR, 'DejaVuSans.ttf')
 
-# --- CONFIGURARE BAZA DE DATE ---
+# --- 2. CONEXIUNE BAZĂ DE DATE ---
 data_base = {
     'host': 'moro2004.mysql.pythonanywhere-services.com',
     'database': 'moro2004$it_inventar',
@@ -36,7 +35,7 @@ data_base = {
 def get_db_connection():
     return mysql.connector.connect(**data_base)
 
-# --- DECORATORI ---
+# --- 3. DECORATORI SECURITATE ---
 def login_required(f):
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
@@ -53,7 +52,68 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- RUTE FISIERE STATICE ---
+# --- 4. CLASA PDF (AICI ERA PROBLEMA - ACUM E DEFINITĂ SUS) ---
+class ModernPDF(FPDF):
+    def __init__(self, orientation='P', unit='mm', format='A4'):
+        super().__init__(orientation, unit, format)
+        self.font_loaded = False
+        if os.path.exists(FONT_PATH):
+            try:
+                self.add_font('DejaVu', '', FONT_PATH, uni=True)
+                self.add_font('DejaVu', 'B', FONT_PATH, uni=True)
+                self.font_loaded = True
+            except: pass
+
+    def safe_text(self, txt):
+        if not txt or str(txt) == 'None' or str(txt) == 'null' or str(txt).strip() == '': return "-"
+        txt = str(txt)
+        if self.font_loaded: return txt
+        # Fallback pentru caractere dacă nu s-a încărcat fontul
+        return txt.encode('latin-1', 'replace').decode('latin-1')
+
+    def header(self):
+        self.set_fill_color(13, 71, 161)
+        self.rect(0, 0, 210, 5, 'F')
+        self.set_y(10)
+        self.set_font('DejaVu' if self.font_loaded else 'Arial', '', 8)
+        self.set_text_color(100)
+        self.cell(0, 6, self.safe_text('PARCHETUL DE PE LÂNGĂ TRIBUNALUL BRAȘOV | DEPARTAMENT IT'), 0, 1, 'R')
+        self.set_draw_color(200)
+        self.line(10, 18, 200, 18)
+        self.ln(5)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('DejaVu' if self.font_loaded else 'Arial', '', 7)
+        self.set_text_color(150)
+        data_azi = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+        self.cell(0, 10, self.safe_text(f'Generat la: {data_azi} | Pagina {self.page_no()}/{{nb}}'), 0, 0, 'C')
+
+    def section_title(self, label):
+        if self.get_y() > 250: self.add_page()
+        self.ln(5)
+        self.set_font('DejaVu' if self.font_loaded else 'Arial', 'B', 12)
+        self.set_fill_color(230, 240, 255)
+        self.set_text_color(13, 71, 161)
+        self.cell(0, 8, f"  {self.safe_text(label.upper())}", 'L', 1, 'L', True)
+        self.ln(3)
+
+    def info_row(self, label, value):
+        if self.get_y() > 275: self.add_page()
+        self.set_font('DejaVu' if self.font_loaded else 'Arial', '', 9)
+        self.set_text_color(100)
+        self.cell(50, 6, self.safe_text(label), 0, 0, 'R')
+        self.set_text_color(0)
+
+        # Gestionare text lung
+        x = self.get_x()
+        y = self.get_y()
+        self.multi_cell(140, 6, self.safe_text(value), 0, 'L')
+        self.set_draw_color(240)
+        self.line(x, self.get_y(), 200, self.get_y())
+        self.ln(1)
+
+# --- 5. RUTE PENTRU FIȘIERE STATICE ---
 @app.route('/')
 def serve_index():
     return send_from_directory('.', 'index.html')
@@ -62,23 +122,19 @@ def serve_index():
 def serve_static_files(path):
     return send_from_directory('.', path)
 
-# --- AUTENTIFICARE (MODIFICAT PENTRU CASE SENSITIVE) ---
+# --- 6. AUTENTIFICARE ---
 @app.route('/api/login', methods=['POST'])
 def login():
     d = request.json
-    username_input = d.get('username')
-    password_input = d.get('password')
-
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        # Căutăm userul în bază (MySQL poate găsi "Admin" chiar dacă e "admin")
-        cursor.execute("SELECT * FROM users WHERE username = %s", (username_input,))
+        # Login strict case-sensitive
+        cursor.execute("SELECT * FROM users WHERE username = %s", (d.get('username'),))
         user = cursor.fetchone()
         conn.close()
 
-        # AICI E MODIFICAREA: Verificăm dacă numele din bază este IDENTIC (litera cu litera) cu ce a scris userul
-        if user and user['username'] == username_input and check_password_hash(user['password'], password_input):
+        if user and user['username'] == d.get('username') and check_password_hash(user['password'], d.get('password')):
             session['user_id'] = user['id']
             session['username'] = user['username']
             session['role'] = user['role']
@@ -97,10 +153,9 @@ def logout():
 def current_user():
     if 'user_id' in session:
         return jsonify({"logged_in": True, "username": session['username'], "role": session['role']})
-    else:
-        return jsonify({"logged_in": False})
+    return jsonify({"logged_in": False})
 
-# --- ADMIN USERS ---
+# --- 7. ADMIN USERS ---
 @app.route('/api/users', methods=['GET'])
 @admin_required
 def get_users():
@@ -154,7 +209,7 @@ def delete_user(id):
         return jsonify({"succes": True})
     except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
 
-# --- INVENTAR: GET ALL ---
+# --- 8. INVENTAR (Echipamente & Periferice) ---
 @app.route('/api/assets/all', methods=['GET'])
 @login_required
 def get_all_assets():
@@ -162,8 +217,10 @@ def get_all_assets():
         nr_inv = request.args.get('nr_inventar')
         user = request.args.get('utilizator')
         locatie = request.args.get('etaj')
-        q = "SELECT NR_INVENTAR, CATEGORIE, TIP_CALC AS TIP, NUME_PC AS NUME, UTILIZATOR, ETAJ, IP, SERIE_UC AS SERIE FROM Echipamente UNION SELECT NR_INVENTAR, CATEGORIE, TIP, NUME_PERIFERICE AS NUME, UTILIZATOR, NULL AS ETAJ, IP, SERIE_UC AS SERIE FROM Periferice"
-        query = f"SELECT * FROM ({q}) AS assets"
+
+        q1 = "SELECT NR_INVENTAR, CATEGORIE, TIP_CALC AS TIP, NUME_PC AS NUME, UTILIZATOR, ETAJ, IP, SERIE_UC AS SERIE FROM Echipamente"
+        q2 = "SELECT NR_INVENTAR, CATEGORIE, TIP, NUME_PERIFERICE AS NUME, UTILIZATOR, NULL AS ETAJ, IP, SERIE_UC AS SERIE FROM Periferice"
+        query = f"SELECT * FROM ({q1} UNION {q2}) AS assets"
 
         where, params = [], []
         if nr_inv: where.append("NR_INVENTAR LIKE %s"); params.append(f"%{nr_inv}%")
@@ -180,7 +237,6 @@ def get_all_assets():
         return jsonify(data)
     except Exception as e: return jsonify({"eroare": str(e)}), 500
 
-# --- GET ONE ---
 @app.route('/api/echipament/<path:nr_inventar>', methods=['GET'])
 @login_required
 def get_echipament_details(nr_inventar):
@@ -205,7 +261,6 @@ def get_periferic_details(nr_inventar):
         return jsonify(data)
     except Exception as e: return jsonify({"eroare": str(e)}), 500
 
-# --- ADAUGARE / EDITARE / STERGERE ---
 @app.route('/api/echipamente/add', methods=['POST'])
 @admin_required
 def add_echipament():
@@ -304,7 +359,7 @@ def delete_asset(nr_inventar):
         return jsonify({"succes": True}) if r1 or r2 else (jsonify({"eroare": "Negăsit"}), 404)
     except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
 
-# --- INTERVENTII ---
+# --- 9. INTERVENȚII ---
 @app.route('/api/interventii/<path:nr_inventar>', methods=['GET'])
 @login_required
 def get_interventii(nr_inventar):
@@ -322,10 +377,10 @@ def get_interventii(nr_inventar):
 def add_interventie():
     d = request.json
     try:
-        sql = """INSERT INTO Interventii (NR_INVENTAR, TIP_ECHIPAMENT, DATA_INTERVENTIE, TIP_INTERVENTIE, TIP_OPERATIE, DESCRIERE_INTERVENTIE, componente_schimbate_adaugate, DURATA_INTERVENTIE, OPERATOR, OBSERVATII) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
-        val = (d.get('NR_INVENTAR','').strip(), d.get('TIP_ECHIPAMENT'), d.get('DATA_INTERVENTIE'), d.get('TIP_INTERVENTIE'), d.get('TIP_OPERATIE'), d.get('DESCRIERE_INTERVENTIE'), d.get('componente_schimbate_adaugate'), d.get('DURATA_INTERVENTIE'), d.get('OPERATOR'), d.get('OBSERVATII'))
         conn = get_db_connection()
         cursor = conn.cursor()
+        sql = """INSERT INTO Interventii (NR_INVENTAR, TIP_ECHIPAMENT, DATA_INTERVENTIE, TIP_INTERVENTIE, TIP_OPERATIE, DESCRIERE_INTERVENTIE, componente_schimbate_adaugate, DURATA_INTERVENTIE, OPERATOR, OBSERVATII) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
+        val = (d.get('NR_INVENTAR','').strip(), d.get('TIP_ECHIPAMENT'), d.get('DATA_INTERVENTIE'), d.get('TIP_INTERVENTIE'), d.get('TIP_OPERATIE'), d.get('DESCRIERE_INTERVENTIE'), d.get('componente_schimbate_adaugate'), d.get('DURATA_INTERVENTIE'), d.get('OPERATOR'), d.get('OBSERVATII'))
         cursor.execute(sql, val)
         conn.commit()
         conn.close()
@@ -337,10 +392,10 @@ def add_interventie():
 def update_interventie(id_int):
     d = request.json
     try:
-        sql = """UPDATE Interventii SET NR_INVENTAR=%s, DATA_INTERVENTIE=%s, TIP_INTERVENTIE=%s, TIP_OPERATIE=%s, DESCRIERE_INTERVENTIE=%s, componente_schimbate_adaugate=%s, DURATA_INTERVENTIE=%s, OPERATOR=%s, OBSERVATII=%s WHERE ID_INTERVENTIE=%s"""
-        val = (d.get('NR_INVENTAR'), d.get('DATA_INTERVENTIE'), d.get('TIP_INTERVENTIE'), d.get('TIP_OPERATIE'), d.get('DESCRIERE_INTERVENTIE'), d.get('componente_schimbate_adaugate'), d.get('DURATA_INTERVENTIE'), d.get('OPERATOR'), d.get('OBSERVATII'), id_int)
         conn = get_db_connection()
         cursor = conn.cursor()
+        sql = """UPDATE Interventii SET NR_INVENTAR=%s, DATA_INTERVENTIE=%s, TIP_INTERVENTIE=%s, TIP_OPERATIE=%s, DESCRIERE_INTERVENTIE=%s, componente_schimbate_adaugate=%s, DURATA_INTERVENTIE=%s, OPERATOR=%s, OBSERVATII=%s WHERE ID_INTERVENTIE=%s"""
+        val = (d.get('NR_INVENTAR'), d.get('DATA_INTERVENTIE'), d.get('TIP_INTERVENTIE'), d.get('TIP_OPERATIE'), d.get('DESCRIERE_INTERVENTIE'), d.get('componente_schimbate_adaugate'), d.get('DURATA_INTERVENTIE'), d.get('OPERATOR'), d.get('OBSERVATII'), id_int)
         cursor.execute(sql, val)
         conn.commit()
         conn.close()
@@ -359,7 +414,7 @@ def delete_interventie(id_int):
         return jsonify({"succes": True})
     except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
 
-# --- PDF GENERATOR (FINAL) ---
+# --- 10. GENERARE PDF ---
 @app.route('/api/print/<path:nr_inventar>', methods=['GET'])
 def print_pdf(nr_inventar):
     try:
@@ -385,39 +440,52 @@ def print_pdf(nr_inventar):
         campuri_periferic = [("Nr. Inventar", "NR_INVENTAR"), ("Categorie", "CATEGORIE"), ("Tip", "TIP"), ("Producător", "PRODUCATOR"), ("Nume", "NUME_PERIFERICE"), ("Utilizator", "UTILIZATOR"), ("Nume User", "NUME_USER"), ("Data Achiziție", "DATA_ACHIZITIE"), ("Conectat PC", "NUME_CALC"), ("Serie UC", "SERIE_UC"), ("Adresă IP", "IP"), ("Rețea", "RETEA"), ("Memorie", "MEMORIE"), ("Format", "FORMAT"), ("Culoare", "CULOARE_IMPRIMARE"), ("Duplex", "DUPLEX"), ("Stare", "STARE_PARAMETRI"), ("Cameră", "CAMERA"), ("Antivirus", "ANTIVIRUS"), ("Parchet", "PARCHET"), ("Pass", "PASS"), ("Obs", "OBS"), ("Obs2", "OBS2")]
 
         lista = campuri_echipament if tip_articol == 'echipament' else campuri_periferic
-        pdf = ModernPDF(); pdf.alias_nb_pages(); pdf.add_page()
+        pdf = ModernPDF()
+        pdf.alias_nb_pages()
+        pdf.add_page()
         pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", 'B', 22)
         pdf.cell(0, 15, pdf.safe_text(f"FIȘĂ INVENTAR: {item['NR_INVENTAR']}"), 0, 1, 'C')
 
         pdf.section_title("DATE ARTICOL")
         for et, k in lista:
             val = item.get(k)
-            # Doar dacă există valoare
-            if val and str(val).strip() != '' and str(val) != 'None': pdf.info_row(et, val)
+            if val and str(val).strip() != '' and str(val) != 'None':
+                pdf.info_row(et, val)
 
-        pdf.add_page(); pdf.section_title("ISTORIC INTERVENȚII")
+        pdf.add_page()
+        pdf.section_title("ISTORIC INTERVENȚII")
         if interventii:
-            pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", 'B', 8); pdf.set_fill_color(220, 220, 220)
-            col_w = [25, 20, 25, 80, 40]; headers = ["Data", "Tip", "Op.", "Descriere", "Operator"]
-            for i, h in enumerate(headers): pdf.cell(col_w[i], 8, pdf.safe_text(h), 1, 0, 'C', True)
-            pdf.ln(); pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", '', 8)
+            pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", 'B', 8)
+            pdf.set_fill_color(220, 220, 220)
+            col_w = [25, 20, 25, 80, 40]
+            headers = ["Data", "Tip", "Op.", "Descriere", "Operator"]
+            for i, h in enumerate(headers):
+                pdf.cell(col_w[i], 8, pdf.safe_text(h), 1, 0, 'C', True)
+            pdf.ln()
+            pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", '', 8)
             for r in interventii:
                 desc = f"{r.get('DESCRIERE_INTERVENTIE','-')} {r.get('componente_schimbate_adaugate','')}"
-                x_s = pdf.get_x(); y_s = pdf.get_y()
-                pdf.set_xy(x_s + sum(col_w[:3]), y_s); pdf.multi_cell(col_w[3], 6, pdf.safe_text(desc), 1, 'L')
+                x_s = pdf.get_x()
+                y_s = pdf.get_y()
+                pdf.set_xy(x_s + sum(col_w[:3]), y_s)
+                pdf.multi_cell(col_w[3], 6, pdf.safe_text(desc), 1, 'L')
                 h_row = pdf.get_y() - y_s
+
                 pdf.set_xy(x_s, y_s)
                 pdf.cell(col_w[0], h_row, pdf.safe_text(str(r.get('DATA_INTERVENTIE','-'))), 1, 0, 'C')
                 pdf.cell(col_w[1], h_row, pdf.safe_text(str(r.get('TIP_INTERVENTIE','-'))), 1, 0, 'C')
                 pdf.cell(col_w[2], h_row, pdf.safe_text(str(r.get('TIP_OPERATIE','-'))), 1, 0, 'C')
-                pdf.set_xy(x_s + sum(col_w[:3]), y_s); pdf.multi_cell(col_w[3], 6, pdf.safe_text(desc), 1, 'L')
+
+                pdf.set_xy(x_s + sum(col_w[:3]), y_s)
+                pdf.multi_cell(col_w[3], 6, pdf.safe_text(desc), 1, 'L')
+
                 pdf.set_xy(x_s + sum(col_w[:4]), y_s)
                 pdf.cell(col_w[4], h_row, pdf.safe_text(str(r.get('OPERATOR','-'))), 1, 1, 'C')
         else:
             pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", '', 10)
             pdf.cell(0, 10, pdf.safe_text("Nu există intervenții înregistrate."), 0, 1, 'L')
 
-        out = pdf.output(dest='S');
+        out = pdf.output(dest='S')
         if isinstance(out, str): out = out.encode('latin-1')
         res = make_response(out)
         res.headers['Content-Type'] = 'application/pdf'
