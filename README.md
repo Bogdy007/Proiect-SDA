@@ -104,4 +104,11 @@ Pentru a testa aplicația pe mașina locală:
 
 ---
 
-## 🧩 Structura Proiectului
+
+## 📝 Licență
+
+Acest proiect a fost dezvoltat în scop educațional și operațional pentru Parchetul de pe lângă Tribunalul Brașov.
+
+---
+
+**Dezvoltat de:** Morosanu Razvan, Panainte Bogdan Dumitru, Neculcea Sabin, Pricop Andrei.
