@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administrare Utilizatori</title>
+    <link rel="icon" type="image/png" href="images/logo_intro.png">
+
+    <script>
+        document.documentElement.style.opacity = '0';
+        document.documentElement.style.transition = 'opacity 0.5s ease-in-out';
+
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
+                window.location.reload();
+            }
+        });
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <style>
+        /* --- STILURI ADMIN --- */
+        body { background-color: #f8fafc; }
+
+        .header-admin {
+            background: white; padding: 20px 40px; display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 40px;
+        }
+        .header-title { font-size: 1.5rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 15px; }
+
+        .add-card {
+            background: white; padding: 30px; border-radius: 16px; margin-bottom: 40px; border: 1px solid #e2e8f0;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        /* ALINIERE PERFECTA FORMULAR ADĂUGARE */
+        .add-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 20px;
+            align-items: end;
+        }
+
+        /* Inputuri Fixe */
+        .add-grid input[type="text"],
+        .add-grid input[type="password"],
+        .add-grid select {
+            width: 100%; height: 48px !important; padding: 0 15px;
+            border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem;
+            background-color: #ffffff; color: #334155; box-sizing: border-box;
+            display: flex; align-items: center;
+        }
+        .add-grid input:focus, .add-grid select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+
+        /* Buton Ochi */
+        #toggleAddPass {
+            position: absolute; top: 50%; transform: translateY(-50%); right: 15px;
+            font-size: 1.1rem; cursor: pointer; color: #94a3b8; padding: 5px; z-index: 10;
+        }
+        #toggleAddPass:hover { color: #2563eb; }
+
+        /* Buton Creează */
+        #btn-create-user {
+            height: 48px !important; padding: 0 25px; font-size: 1rem;
+            display: flex; align-items: center; justify-content: center; margin-bottom: 0;
+        }
+
+        /* --- ICON BOX --- */
+        .icon-box {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 42px; height: 42px; background-color: #dbeafe; color: #2563eb;
+            border-radius: 10px; font-size: 1.1rem; margin-right: 12px;
+        }
+
+        /* --- STILURI CARTOANE UTILIZATORI --- */
+        .users-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; }
+        .user-card {
+            background: white; padding: 25px; border-radius: 16px; position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;
+            display: flex; flex-direction: column; gap: 15px; transition: all 0.3s ease;
+        }
+        .user-card:hover { transform: translateY(-5px); box-shadow: 0 15px 25px -5px rgba(0,0,0,0.1); }
+
+        .user-header { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
+        .avatar {
+            width: 50px; height: 50px; background: #eff6ff; color: #2563eb; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700;
+        }
+        .user-info h4 { margin: 0; font-size: 1.1rem; color: #0f172a; }
+        .user-info span { font-size: 0.85rem; color: #64748b; }
+
+        .role-select {
+            width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;
+            background-color: #f8fafc; color: #334155; font-weight: 500; cursor: pointer; transition: all 0.2s;
+        }
+        .role-select.is-admin { border-left: 4px solid #10b981; }
+        .role-select.is-viewer { border-left: 4px solid #64748b; }
+
+        /* --- BUTON ȘTERGERE (ROȘU vs GRI - STIL NOU) --- */
+        .delete-btn {
+            margin-top: auto; padding: 10px; border-radius: 8px;
+            font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; transition: all 0.2s; border: none;
+        }
+
+        /* Varianta Activă (Roșu) - Doar când NU e disabled */
+        .delete-btn:not(:disabled) {
+            background-color: #ef4444;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3);
+        }
+
+        .delete-btn:not(:disabled):hover {
+            background-color: #dc2626; /* Roșu mai închis la hover */
+            transform: translateY(-2px);
+        }
+
+        /* Varianta Inactivă (Gri) - Când e disabled */
+        .delete-btn:disabled {
+            background-color: #e5e7eb !important; /* Gri clar */
+            color: #9ca3af !important;            /* Text gri */
+            border: 1px solid #d1d5db !important;
+            cursor: not-allowed;
+            box-shadow: none !important;
+            transform: none !important; /* Nu se mișcă */
+        }
+
+        /* Siguranță suplimentară: La hover pe disabled, nu schimbăm nimic */
+        .delete-btn:disabled:hover {
+            background-color: #e5e7eb !important;
+            color: #9ca3af !important;
+        }
+
+        @media (max-width: 900px) { .add-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+    <div class="header-admin">
+        <div class="header-title">
+            <img src="images/logo_intro.png" style="width: 50px;" alt="Logo">
+            <span>Panou Administrator</span>
+        </div>
+        <button id="btn-back" class="btn" style="background-color: #64748b; color: white; border:none; cursor:pointer; padding: 12px 25px; border-radius: 10px;">
+            <i class="fa-solid fa-arrow-left"></i> Înapoi la Dashboard
+        </button>
+    </div>
+
+    <div class="container">
+        <div class="add-card">
+            <h3 style="margin-bottom: 25px; color: #1e293b; display: flex; align-items: center;">
+                <span class="icon-box"><i class="fa-solid fa-user-plus"></i></span>
+                Adaugă Utilizator Nou
+            </h3>
+
+            <form id="add-user-form">
+                <div class="add-grid">
+                    <div>
+                        <label style="font-size: 0.85rem; font-weight:600; color:#64748b; margin-bottom:5px; display:block;">Nume Utilizator</label>
+                        <input type="text" id="new-user" placeholder="ex: popescu" required>
+                    </div>
+                    <div>
+                        <label style="font-size: 0.85rem; font-weight:600; color:#64748b; margin-bottom:5px; display:block;">Parolă</label>
+                        <div style="position:relative;">
+                            <input type="password" id="new-pass" placeholder="••••••" required style="padding-right: 40px;">
+                            <i class="fa-solid fa-eye" id="toggleAddPass"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <label style="font-size: 0.85rem; font-weight:600; color:#64748b; margin-bottom:5px; display:block;">Rol Inițial</label>
+                        <select id="new-role">
+                            <option value="viewer">Viewer (Doar Citire)</option>
+                            <option value="admin">Admin (Acces Total)</option>
+                        </select>
+                    </div>
+                    <button type="submit" id="btn-create-user" class="btn" style="background-color:#2563eb; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">
+                        <i class="fa-solid fa-check"></i> &nbsp; Creează Cont
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <h3 style="margin-bottom: 25px; color: #334155; font-size: 1.3rem;">
+            <i class="fa-solid fa-users-line"></i> Lista Utilizatori
+        </h3>
+
+        <div class="users-grid" id="users-list">
+            <div style="grid-column: 1/-1; text-align: center; color: #94a3b8; padding: 40px;">
+                <i class="fa-solid fa-spinner fa-spin fa-2x"></i><br>Se încarcă lista...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = "";
+
+        // --- 1. VERIFICARE SECURITATE & FADE IN ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/me');
+                const u = await res.json();
+
+                if (!u.logged_in || u.role !== 'admin') {
+                    window.location.replace('index.html');
+                } else {
+                    currentUser = u.username;
+                    await loadUsers();
+                    requestAnimationFrame(() => {
+                        document.documentElement.style.opacity = '1';
+                        document.body.classList.add('loaded');
+                    });
+                }
+            } catch (e) {
+                window.location.replace('login.html');
+            }
+        });
+
+        // --- 2. BACK BUTTON ---
+        document.getElementById('btn-back').onclick = () => {
+            document.documentElement.style.opacity = '0';
+            setTimeout(() => window.location.href = 'index.html', 500);
+        };
+
+        // --- 3. LOAD USERS ---
+        async function loadUsers() {
+            try {
+                const res = await fetch('/api/users');
+                const users = await res.json();
+                const container = document.getElementById('users-list');
+                container.innerHTML = '';
+
+                users.forEach(u => {
+                    const isAdmin = u.role === 'admin';
+                    const isSuperAdmin = (u.id === 1);
+                    const isMe = (u.username === currentUser);
+
+                    // Logică pentru a determina dacă putem șterge
+                    const canDelete = !isSuperAdmin && !isMe;
+                    const disabledAttr = canDelete ? '' : 'disabled';
+                    const userIcon = isSuperAdmin ? '<i class="fa-solid fa-crown" style="color:gold;"></i> ' : '';
+
+                    container.innerHTML += `
+                        <div class="user-card">
+                            <div class="user-header">
+                                <div class="avatar">${u.username.charAt(0).toUpperCase()}</div>
+                                <div class="user-info">
+                                    <h4>${userIcon}${u.username}</h4>
+                                    <span>ID: #${u.id}</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem; color:#94a3b8; font-weight:600;">ROL ACCES</label>
+                                <select class="role-select ${isAdmin ? 'is-admin' : 'is-viewer'}"
+                                        onchange="changeRole(${u.id}, this)" ${!canDelete ? 'disabled' : ''}>
+                                    <option value="admin" ${isAdmin ? 'selected' : ''}>👑 Administrator</option>
+                                    <option value="viewer" ${!isAdmin ? 'selected' : ''}>👁️ Viewer</option>
+                                </select>
+                            </div>
+
+                            <button class="delete-btn" onclick="deleteUser(${u.id}, '${u.username}')" ${disabledAttr}>
+                                <i class="fa-solid fa-trash-can"></i> Șterge Utilizator
+                            </button>
+                        </div>`;
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        // --- 4. CHANGE ROLE ---
+        async function changeRole(id, selectElement) {
+            const newRole = selectElement.value;
+            try {
+                const res = await fetch(`/api/users/update_role/${id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ role: newRole })
+                });
+                const data = await res.json();
+                if(data.succes) {
+                    selectElement.className = `role-select ${newRole === 'admin' ? 'is-admin' : 'is-viewer'}`;
+                } else {
+                    alert("Eroare: " + data.eroare);
+                    location.reload();
+                }
+            } catch (e) { alert("Eroare server."); }
+        }
+
+        // --- 5. DELETE USER ---
+        async function deleteUser(id, name) {
+            if(!confirm(`Ștergi utilizatorul ${name}?`)) return;
+            const res = await fetch(`/api/users/delete/${id}`, {method:'POST'});
+            const d = await res.json();
+            if(d.succes) await loadUsers();
+            else alert("Eroare: " + d.eroare);
+        }
+
+        // --- 6. ADD USER ---
+        document.getElementById('add-user-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const data = {
+                username: document.getElementById('new-user').value,
+                password: document.getElementById('new-pass').value,
+                role: document.getElementById('new-role').value
+            };
+            const res = await fetch('/api/users/add', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify(data)
+            });
+            const d = await res.json();
+            if(d.succes) {
+                alert("Utilizator creat!");
+                document.getElementById('add-user-form').reset();
+                await loadUsers();
+            } else alert(d.eroare);
+        };
+
+        // --- 7. TOGGLE PASSWORD ---
+        document.getElementById('toggleAddPass').onclick = function() {
+            const inp = document.getElementById('new-pass');
+            if(inp.type==='password'){
+                inp.type='text';
+                this.classList.remove('fa-eye');
+                this.classList.add('fa-eye-slash');
+            } else {
+                inp.type='password';
+                this.classList.remove('fa-eye-slash');
+                this.classList.add('fa-eye');
+            }
+        };
+    </script>
+</body>
+</html>

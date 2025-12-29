@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formular Articol</title>
+    <link rel="icon" type="image/png" href="images/logo_intro.png">
+    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+<body>
+
+    <header>
+        <h1>
+            <img src="images/logo_intro.png" alt="Logo" class="header-logo">
+            Administrare Echipament
+        </h1>
+    </header>
+
+    <main class="container">
+        <div class="page-actions">
+            <h2 id="form-title">Încărcare...</h2>
+            <button class="btn btn-cancel" onclick="window.history.back()"><i class="fa-solid fa-arrow-left"></i> Anulează</button>
+        </div>
+
+        <div class="form-container">
+            <form id="main-form">
+                <div class="detalii-grid" id="fields-container"></div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-submit"><i class="fa-solid fa-save"></i> Salvează</button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE = '/api';
+        const params = new URLSearchParams(window.location.search);
+        const type = params.get('type');
+        const id = params.get('id');
+
+        const fieldsEchipament = ['NR_INVENTAR','CATEGORIE','TIP_CALC','NUME_PC','UTILIZATOR','NR_USER','DATA_ACHIZITIE','ETAJ','FUNCTIE','IP','RETEA','SERIE_UC','SERIE_MON','MEMORIE','SISTEM_OPERARE','LICENTA_SO','OFFICE','LICENTA_OFFICE','ANTIVIRUS','CAMERA','TELEFON','PERIFERICE','PARCHET','PASS','OBS'];
+        const fieldsPeriferic = ['NR_INVENTAR','CATEGORIE','TIP','PRODUCATOR','NUME_PERIFERICE','UTILIZATOR','NUME_USER','DATA_ACHIZITIE','NUME_CALC','SERIE_UC','IP','RETEA','MEMORIE','FORMAT','CULOARE_IMPRIMARE','DUPLEX','STARE_PARAMETRI','CAMERA','ANTIVIRUS','PARCHET','PASS','OBS','OBS2'];
+
+        // VERIFICARE ADMIN LA ÎNCEPUT
+        fetch(`${API_BASE}/me`)
+            .then(res => res.json())
+            .then(user => {
+                if(!user.logged_in) { window.location.href='login.html'; return; }
+                if(user.role !== 'admin') {
+                    alert("Doar adminii pot edita!");
+                    window.location.href='index.html';
+                } else {
+                    initForm(); // Daca e admin, incarca formularul
+                }
+            })
+            .catch(() => window.location.href='login.html');
+
+        function initForm() {
+            document.getElementById('form-title').innerText = id ? `Editare ${type}` : `Adăugare ${type}`;
+            const container = document.getElementById('fields-container');
+            const fields = (type === 'echipament') ? fieldsEchipament : fieldsPeriferic;
+
+            fields.forEach(f => {
+                let inputType = 'text';
+                if(f.includes('DATA')) inputType = 'date';
+
+                let label = f.replace(/_/g, ' ');
+                let html = `
+                <div class="form-group">
+                    <label>${label}</label>
+                    <input type="${inputType}" name="${f}" ${f==='NR_INVENTAR'?'required':''}>
+                </div>`;
+                container.innerHTML += html;
+            });
+
+            if(id) {
+                const ep = (type === 'echipament') ? 'echipament' : 'periferic';
+                // CODARE URL PENTRU GET
+                fetch(`${API_BASE}/${ep}/${encodeURIComponent(id)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        for (const [key, val] of Object.entries(data)) {
+                            const inp = document.querySelector(`[name="${key}"]`);
+                            if(inp) {
+                                // --- AICI ESTE FIXUL PENTRU DATĂ ---
+                                if (key.includes('DATA') && val) {
+                                    try {
+                                        // Creăm un obiect dată din textul primit
+                                        let d = new Date(val);
+                                        // Verificăm dacă e valid
+                                        if (!isNaN(d.getTime())) {
+                                            // Ajustăm fusul orar ca să nu pierdem o zi
+                                            const offset = d.getTimezoneOffset();
+                                            d = new Date(d.getTime() - (offset * 60 * 1000));
+                                            // Punem formatul YYYY-MM-DD
+                                            inp.value = d.toISOString().split('T')[0];
+                                        } else {
+                                            inp.value = val;
+                                        }
+                                    } catch (e) {
+                                        inp.value = val;
+                                    }
+                                } else {
+                                    // Pentru restul câmpurilor (text normal)
+                                    inp.value = val;
+                                }
+                            }
+                        }
+                        const nrInv = document.querySelector('[name="NR_INVENTAR"]');
+                        if(nrInv) nrInv.readOnly = true;
+                    });
+            }
+        }
+
+        document.getElementById('main-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const dataObj = Object.fromEntries(formData.entries());
+
+            // TRIM (Scoatem spațiile invizibile)
+            for (let key in dataObj) {
+                if (typeof dataObj[key] === 'string') dataObj[key] = dataObj[key].trim();
+            }
+
+            if(type==='echipament' && !dataObj.CATEGORIE) dataObj.CATEGORIE='Echipament IT';
+            if(type==='periferic' && !dataObj.CATEGORIE) dataObj.CATEGORIE='Periferic';
+
+            // CODARE URL PENTRU UPDATE
+            let url = id ? `${API_BASE}/${type === 'echipament' ? 'echipamente' : 'periferice'}/update/${encodeURIComponent(id)}`
+                         : `${API_BASE}/${type === 'echipament' ? 'echipamente' : 'periferice'}/add`;
+            let method = id ? 'PUT' : 'POST';
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(dataObj)
+                });
+                const resp = await res.json();
+
+                if(resp.succes) {
+                    alert("Salvat!");
+                    // CODARE URL PENTRU REDIRECT
+                    window.location.href = `detalii.html?id=${encodeURIComponent(dataObj.NR_INVENTAR)}&type=${type}`;
+                } else {
+                    alert("Eroare: " + resp.eroare);
+                }
+            } catch(err) { alert("Eroare server"); }
+        };
+    </script>
+</body>
+</html>
