@@ -11,7 +11,7 @@
 
 Acest proiect a fost creat pentru a înlocui evidențele manuale (registre, Excel) cu o soluție digitală centralizată. Aplicația permite departamentului IT să gestioneze ciclul de viață al echipamentelor, să monitorizeze intervențiile de service și să genereze automat documente oficiale.
 
-Proiectul este găzduit în cloud pe infrastructura **PythonAnywhere** și utilizează o arhitectură Client-Server optimizată pentru performanță.
+Proiectul este găzduit în cloud pe infrastructura **PythonAnywhere** și utilizează o arhitectură Client-Server optimizată pentru performanță. Si poate fi accesat aici: https://moro2004.pythonanywhere.com/login.html
 
 ---
 
