@@ -1,148 +1,107 @@
-Inventar Echipamente IT — Frontend + Backend + API
+# 🖥️ Sistem Integrat de Gestiune a Inventarului IT
 
-A small internal web application for tracking IT equipment and peripherals. The project contains a static frontend (HTML/CSS/vanilla JS) and a Python Flask backend that exposes a REST-style API and generates printable PDF sheets for assets.
+> O aplicație web Full-Stack pentru digitalizarea și administrarea infrastructurii IT, dezvoltată pentru **Parchetul de pe lângă Tribunalul Brașov**.
 
-The UI is in Romanian and targets internal use (Parchetul de pe lângă Tribunalul Brașov).
+![Python](https://img.shields.io/badge/Python-3.10-blue?style=for-the-badge&logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-2.0-black?style=for-the-badge&logo=flask&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-8.0-orange?style=for-the-badge&logo=mysql&logoColor=white)
+![Frontend](https://img.shields.io/badge/HTML5%20%26%20CSS3-Glassmorphism-pink?style=for-the-badge)
 
+## 📖 Descriere
 
-## Overview
-- Frontend: static pages (`index.html`, `detalii.html`, `formular.html`, `select_type.html`) styled with `style.css` and using Font Awesome CDN.
-- Backend: `Flask` app in `main.py` providing endpoints for listing, viewing, adding, updating, deleting assets and interventions, plus generating PDFs with `fpdf2` using the bundled `DejaVuSans.ttf` font.
-- Database: MySQL (credentials currently hardcoded in `main.py`).
-- PDF: Generated via the `/api/print/<nr_inventar>` endpoint.
+Acest proiect a fost creat pentru a înlocui evidențele manuale (registre, Excel) cu o soluție digitală centralizată. Aplicația permite departamentului IT să gestioneze ciclul de viață al echipamentelor, să monitorizeze intervențiile de service și să genereze automat documente oficiale.
 
+Proiectul este găzduit în cloud pe infrastructura **PythonAnywhere** și utilizează o arhitectură Client-Server optimizată pentru performanță.
 
-## Tech Stack
-- Language: Python 3.10+ (recommended)
-- Frameworks/Libraries (Backend):
-  - Flask
-  - flask-cors
-  - mysql-connector-python
-  - fpdf2
-- Frontend: HTML5, CSS3, vanilla JavaScript, Font Awesome (CDN)
-- Database: MySQL 8.x (table names: `Echipamente`, `Periferice`, `Interventii` assumed by code)
+---
 
+## ✨ Funcționalități Cheie
 
-## Project Structure
-Frontend/
-- DejaVuSans.ttf               — Font used by fpdf2 for Unicode PDFs
-- detalii.html                 — Details page for a selected asset
-- formular.html                — Form page (add/edit equipment/peripheral)
-- images/logo_intro.png        — Logo used in UI and favicon
-- index.html                   — Main listing & filtering page
-- main.py                      — Flask backend (API + PDF)
-- select_type.html             — Select type of item to add
-- style.css                    — Global styles
+### 1. 📦 Gestiunea Activelor (Asset Management)
+* **Evidență Unificată:** Gestionarea a două tipuri de entități (*Echipamente IT* și *Periferice*) într-o interfață comună.
+* **Formulare Dinamice:** Interfața de adăugare/editare se adaptează automat (Context-Aware) în funcție de tipul echipamentului selectat.
+* **Validare:** Prevenirea duplicatelor prin validare server-side a numerelor de inventar.
 
+### 2. 🛠️ Caiet de Service Digital
+* Monitorizarea istoricului de mentenanță pentru fiecare dispozitiv.
+* Înregistrarea detaliată a intervențiilor: *Dată, Operator, Tip Intervenție (Hardware/Software), Componente înlocuite*.
 
-## Backend API — Entry Point and Endpoints
-- Entry point file: `main.py`
-- Flask app variable: `app`
-- CORS: enabled for all origins
-- Detected routes (summary):
-  - GET `/api/assets/all` — list (with filters via query params: `nr_inventar`, `utilizator`, `etaj`, `nume`, `serie`, `ip`, `tip`)
-  - GET `/api/echipament/<nr_inventar>` — details for an equipment row (table `Echipamente`)
-  - GET `/api/periferic/<nr_inventar>` — details for a peripheral row (table `Periferice`)
-  - POST `/api/echipamente/add` — add equipment
-  - POST `/api/periferice/add` — add peripheral
-  - PUT `/api/echipamente/update/<id_vechi>` — update equipment (by old inventory id)
-  - PUT `/api/periferice/update/<id_vechi>` — update peripheral (by old inventory id)
-  - POST `/api/assets/delete/<nr_inventar>` — delete asset (equipment or peripheral)
-  - GET `/api/interventii/<nr_inventar>` — list interventions for an asset
-  - POST `/api/interventii/add` — add intervention
-  - GET `/api/print/<nr_inventar>` — generate asset sheet as PDF
+### 3. 📄 Generator de Rapoarte PDF Custom
+* Motor propriu de generare a PDF-urilor folosind librăria `FPDF`.
+* **Nu** este o simplă imprimare de ecran: documentul este desenat vectorial, pixel-perfect.
+* Suport complet pentru diacritice românești (font `DejaVuSans`).
+* Tabele dinamice care se ajustează automat la lungimea textului.
 
-Note: There is no `if __name__ == "__main__": app.run()` block; use Flask CLI to run.
+### 4. 🔒 Securitate și Administrare
+* **RBAC (Role-Based Access Control):** Roluri de `Admin` (CRUD) și `Viewer` (Read-only).
+* **Securitate:** Parole criptate folosind SHA256 (`werkzeug.security`).
+* **Protecție API:** Decoratori custom `@admin_required` pentru protejarea rutelor sensibile.
 
+---
 
-## Requirements
-- Python 3.10 or newer
-- MySQL server (local or remote)
-- Pip (Python package installer)
+## 🛠️ Stack Tehnologic
 
-Python packages (install manually if `requirements.txt` is not present):
-- Flask
-- flask-cors
-- mysql-connector-python
-- fpdf2
+| Componentă | Tehnologie | Detalii |
+| :--- | :--- | :--- |
+| **Backend** | Python 3 + Flask | API RESTful, Server-side logic. |
+| **Bază de Date** | MySQL | Stocare relațională, găzduire cloud. |
+| **Frontend** | HTML5, CSS3, JS | Vanilla JS (Fetch API), Design "Glassmorphism". |
+| **PDF Engine** | PyFPDF | Generare programatică a documentelor. |
+| **Deployment** | PythonAnywhere | Configurare WSGI, server Nginx. |
 
-TODO: Add a `requirements.txt` file with pinned versions.
+---
 
+## 📸 Capturi de Ecran (Screenshots)
 
-## Configuration (Environment Variables)
-Database credentials are currently hardcoded in `main.py` as:
+*(Aici poți încărca imagini cu aplicația ta în folderul repository-ului și să pui link-uri către ele)*
 
-data_base = {
-    'host': 'localhost',
-    'database': 'inventar_it',
-    'user': 'root',
-    'password': 'root',
-    'port': 3306
-}
+| Dashboard Principal | Detalii & Istoric Service |
+|:---:|:---:|
+| *[Imagine Dashboard]* | *[Imagine Detalii]* |
 
-Recommended: move these to environment variables and read them in `main.py`. Suggested variables:
-- `DB_HOST`
-- `DB_NAME`
-- `DB_USER`
-- `DB_PASSWORD`
-- `DB_PORT` (optional, default 3306)
+---
 
-TODO: Refactor `main.py` to load DB config from environment variables safely.
+## 🚀 Instalare și Rulare Locală
 
+Pentru a testa aplicația pe mașina locală:
 
-## Setup and Run
-1) Create and activate a virtual environment (recommended):
+1.  **Clonează repository-ul:**
+    ```bash
+    git clone [https://github.com/userul-tau/nume-repo.git](https://github.com/userul-tau/nume-repo.git)
+    cd nume-repo
+    ```
 
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# macOS/Linux
-source .venv/bin/activate
+2.  **Creează un mediu virtual (opțional dar recomandat):**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # Pe Windows: venv\Scripts\activate
+    ```
 
-2) Install dependencies:
+3.  **Instalează dependențele:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+    *(Notă: Asigură-te că ai instalat `flask`, `mysql-connector-python`, `fpdf`, `flask-cors`)*
 
-pip install Flask flask-cors mysql-connector-python fpdf2
+4.  **Configurare Bază de Date:**
+    * Importă structura bazei de date (fișier SQL) în serverul tău local MySQL.
+    * Actualizează dicționarul `data_base` în fișierul `main.py`:
+    ```python
+    data_base = {
+        'host': 'localhost',
+        'database': 'nume_baza_date',
+        'user': 'root',
+        'password': 'parola_ta',
+        'port': 3306
+    }
+    ```
 
-3) Prepare the MySQL database:
-- Create database `inventar_it` (or your preferred name)
-- Create tables `Echipamente`, `Periferice`, and `Interventii` with the columns used in the code
-- Ensure user credentials match those configured in `main.py`
+5.  **Pornește serverul:**
+    ```bash
+    python main.py
+    ```
+    Accesează `http://127.0.0.1:5000` în browser.
 
-TODO: Provide schema (DDL) scripts for all tables.
+---
 
-4) Run the backend (Flask CLI):
-
-# from the project root where main.py lives
-export FLASK_APP=main.py           # PowerShell: $env:FLASK_APP = "main.py"
-export FLASK_ENV=development       # optional for auto-reload; PS: $env:FLASK_ENV = "development"
-flask run --host=127.0.0.1 --port=5000
-
-The API will be available at http://127.0.0.1:5000
-
-5) Open the frontend:
-- Simply open `index.html` in your browser, or
-- Serve the folder over a simple HTTP server (helps with relative paths):
-
-# Python 3
-python -m http.server 8080
-# then navigate to http://127.0.0.1:8080/index.html
-
-The frontend expects the API at http://127.0.0.1:5000 (see JS constants in HTML files). Adjust if running on a different host/port.
-
-
-## Scripts and Useful Commands
-- Install dependencies: `pip install Flask flask-cors mysql-connector-python fpdf2`
-- Start backend (dev): `FLASK_APP=main.py flask run`
-- Serve static frontend locally: `python -m http.server 8080`
-- Generate a PDF for a given asset: open `http://127.0.0.1:5000/api/print/<NR_INVENTAR>` in the browser
-
-
-
-## Environment and Assets
-- Font file `DejaVuSans.ttf` must remain accessible relative to `main.py` for PDF generation via fpdf2 (`pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)`).
-- CORS is enabled with `flask-cors` allowing the static frontend to call the API from `file://` or another port.
-
-
-## Acknowledgements
-- Font Awesome for icons (loaded via CDN)
-- fpdf2 for PDF generation
+## 🧩 Structura Proiectului
