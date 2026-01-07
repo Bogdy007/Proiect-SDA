@@ -243,6 +243,10 @@
         const API_BASE = '/api';
         let nrInventarGlobal = null;
         let tipArticolGlobal = null;
+
+        // --- 1. VARIABILĂ NOUĂ PENTRU A REȚINE TIPUL EXACT (ex: Desktop, Scanner) ---
+        let specificTypeGlobal = "";
+
         let interventiiGlobal = [];
         let isAdmin = false;
 
@@ -314,6 +318,14 @@
                 const container = document.getElementById('info-articol');
                 container.innerHTML = '';
 
+                // --- 2. SALVĂM TIPUL EXACT PENTRU INTERVENȚII ---
+                if (tip === 'echipament') {
+                    specificTypeGlobal = item.TIP_CALC || 'Echipament IT';
+                } else {
+                    specificTypeGlobal = item.TIP || 'Periferic';
+                }
+                // ------------------------------------------------
+
                 const displayField = (key) => {
                     let label = key.replace(/_/g, ' ');
                     label = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
@@ -360,7 +372,9 @@
             document.getElementById('modal-title').textContent = "Editează Intervenție";
             document.getElementById('edit-interventie-id').value = id;
             document.getElementById('modal-nr-inventar').value = item.NR_INVENTAR;
-            document.getElementById('modal-tip-echip').value = item.TIP_ECHIPAMENT;
+
+            // Setăm tipul echipamentului (din baza de date sau global dacă lipsește)
+            document.getElementById('modal-tip-echip').value = item.TIP_ECHIPAMENT || specificTypeGlobal;
 
             for (const [k, v] of Object.entries(item)) {
                 const el = form.querySelector(`[name="${k}"]`);
@@ -388,14 +402,21 @@
 
             const modal = document.getElementById('modal-interventie');
             const form = document.getElementById('form-interventie');
+
             document.getElementById('btn-adauga-interventie').onclick = () => {
                 form.reset();
                 document.getElementById('modal-title').textContent = "Adaugă Intervenție";
                 document.getElementById('edit-interventie-id').value = "";
                 document.getElementById('modal-nr-inventar').value = nrInventarGlobal;
+
+                // --- 3. FIX: POPULĂM AUTOMAT TIPUL ECHIPAMENTULUI PENTRU INTERVENȚII NOI ---
+                document.getElementById('modal-tip-echip').value = specificTypeGlobal;
+                // -------------------------------------------------------------------------
+
                 document.querySelector('[name="DATA_INTERVENTIE"]').valueAsDate = new Date();
                 modal.style.display = 'flex';
             };
+
             const inchide = () => modal.style.display = 'none';
             document.getElementById('close-modal-btn').onclick = inchide;
             document.getElementById('cancel-modal-btn').onclick = inchide;
