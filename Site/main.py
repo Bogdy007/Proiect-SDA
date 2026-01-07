@@ -474,6 +474,7 @@ def print_pdf(nr_inventar):
         cursor.execute("SELECT * FROM Interventii WHERE NR_INVENTAR = %s ORDER BY DATA_INTERVENTIE DESC", (nr,))
         interventii = cursor.fetchall(); conn.close()
 
+        # ... (LISTELE DE CÂMPURI RĂMÂN LA FEL, LE POȚI PĂSTRA PE ALE TALE SAU COPIA DE AICI) ...
         campuri_echipament = [
             ("Nr. Inventar", "NR_INVENTAR"), ("Categorie", "CATEGORIE"), ("Tip Calc", "TIP_CALC"),
             ("Nume PC", "NUME_PC"), ("Utilizator", "UTILIZATOR"), ("Nr. User", "NR_USER"),
@@ -484,7 +485,6 @@ def print_pdf(nr_inventar):
             ("Cameră", "CAMERA"), ("Telefon", "TELEFON"), ("Periferice", "PERIFERICE"),
             ("Parchet", "PARCHET"), ("Pass", "PASS"), ("Obs", "OBS")
         ]
-
         campuri_periferic = [
             ("Nr. Inventar", "NR_INVENTAR"), ("Categorie", "CATEGORIE"), ("Tip", "TIP"),
             ("Producător", "PRODUCATOR"), ("Nume Periferice", "NUME_PERIFERICE"),
@@ -506,24 +506,101 @@ def print_pdf(nr_inventar):
             val = item.get(k)
             if val and str(val).strip() != '' and str(val) != 'None': pdf.info_row(et, val)
 
+        # --- TABEL ISTORIC INTERVENȚII (FIXAT) ---
         pdf.add_page(); pdf.section_title("ISTORIC INTERVENȚII")
         if interventii:
-            pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", 'B', 8); pdf.set_fill_color(220, 220, 220)
-            col_w = [25, 20, 25, 80, 40]; headers = ["Data", "Tip", "Op.", "Detalii (Descriere, Durată, Obs)", "Operator"]
-            for i, h in enumerate(headers): pdf.cell(col_w[i], 8, pdf.safe_text(h), 1, 0, 'C', True)
-            pdf.ln(); pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", '', 8)
+            # Configurare lățimi coloane (Total ~190mm)
+            # Data | Tip | Operatie | Detalii | Operator
+            cw = [25, 25, 40, 70, 30]
+            headers = ["Data", "Tip", "Operație", "Detalii (Descriere, Obs)", "Operator"]
+
+            pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", 'B', 9)
+            pdf.set_fill_color(220, 220, 220)
+
+            # Header
+            for i, h in enumerate(headers):
+                pdf.cell(cw[i], 8, pdf.safe_text(h), 1, 0, 'C', True)
+            pdf.ln()
+
+            pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", '', 8)
+
             for r in interventii:
-                desc = f"{r.get('DESCRIERE_INTERVENTIE','-')}\nComp: {r.get('componente_schimbate_adaugate','')}\nDurata: {r.get('DURATA_INTERVENTIE','-')} | Obs: {r.get('OBSERVATII','')}"
-                x_s = pdf.get_x(); y_s = pdf.get_y()
-                pdf.set_xy(x_s + sum(col_w[:3]), y_s); pdf.multi_cell(col_w[3], 5, pdf.safe_text(desc), 1, 'L')
-                h_row = pdf.get_y() - y_s
-                pdf.set_xy(x_s, y_s)
-                pdf.cell(col_w[0], h_row, pdf.safe_text(str(r.get('DATA_INTERVENTIE','-'))), 1, 0, 'C')
-                pdf.cell(col_w[1], h_row, pdf.safe_text(str(r.get('TIP_INTERVENTIE','-'))), 1, 0, 'C')
-                pdf.cell(col_w[2], h_row, pdf.safe_text(str(r.get('TIP_OPERATIE','-'))), 1, 0, 'C')
-                pdf.set_xy(x_s + sum(col_w[:3]), y_s); pdf.multi_cell(col_w[3], 5, pdf.safe_text(desc), 1, 'L')
-                pdf.set_xy(x_s + sum(col_w[:4]), y_s)
-                pdf.cell(col_w[4], h_row, pdf.safe_text(str(r.get('OPERATOR','-'))), 1, 1, 'C')
+                # Pregătire date
+                data_str = str(r.get('DATA_INTERVENTIE','-'))
+                tip_str = str(r.get('TIP_INTERVENTIE','-'))
+                op_str = str(r.get('TIP_OPERATIE','-'))
+                desc_str = f"{r.get('DESCRIERE_INTERVENTIE','-')}\nComp: {r.get('componente_schimbate_adaugate','')}\nDurata: {r.get('DURATA_INTERVENTIE','-')} | Obs: {r.get('OBSERVATII','')}"
+                user_str = str(r.get('OPERATOR','-'))
+
+                # Calculăm înălțimea rândului.
+                # Trebuie să vedem care coloană are nevoie de cel mai mult spațiu (Op sau Detalii)
+
+                # Salvăm poziția Y de start
+                y_start = pdf.get_y()
+
+                # 1. Simulăm scrierea coloanei 'Operație' pentru a vedea înălțimea
+                pdf.set_xy(10 + cw[0] + cw[1], y_start) # Mutăm la col 3
+                pdf.multi_cell(cw[2], 5, pdf.safe_text(op_str), 0, 'C')
+                h_op = pdf.get_y() - y_start
+
+                # 2. Simulăm scrierea coloanei 'Detalii'
+                pdf.set_xy(10 + cw[0] + cw[1] + cw[2], y_start) # Mutăm la col 4
+                pdf.multi_cell(cw[3], 5, pdf.safe_text(desc_str), 0, 'L')
+                h_det = pdf.get_y() - y_start
+
+                # Înălțimea rândului este maximul dintre cele două + o margine
+                h_row = max(h_op, h_det, 8)
+
+                # Verificăm dacă mai e loc pe pagină, altfel Page Break
+                if (y_start + h_row) > 275:
+                    pdf.add_page()
+                    # Retipărim header (opțional, dar arată bine)
+                    pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", 'B', 9)
+                    pdf.set_fill_color(220, 220, 220)
+                    for i, h in enumerate(headers):
+                        pdf.cell(cw[i], 8, pdf.safe_text(h), 1, 0, 'C', True)
+                    pdf.ln()
+                    pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", '', 8)
+                    y_start = pdf.get_y()
+
+                # --- DESENAREA EFECTIVĂ ---
+                # Resetăm Y la începutul rândului
+                pdf.set_y(y_start)
+                x_curr = 10 # Marginea stângă standard FPDF este 10mm
+
+                # Col 1: Data
+                pdf.set_xy(x_curr, y_start)
+                pdf.cell(cw[0], h_row, pdf.safe_text(data_str), 1, 0, 'C')
+
+                # Col 2: Tip
+                x_curr += cw[0]
+                pdf.set_xy(x_curr, y_start)
+                pdf.cell(cw[1], h_row, pdf.safe_text(tip_str), 1, 0, 'C')
+
+                # Col 3: Operație (MultiCell cu chenar corect)
+                x_curr += cw[1]
+                pdf.set_xy(x_curr, y_start)
+                # Desenăm conținutul
+                pdf.multi_cell(cw[2], 5, pdf.safe_text(op_str), 0, 'C')
+                # Desenăm chenarul peste (ca să aibă înălțimea full h_row)
+                pdf.set_xy(x_curr, y_start)
+                pdf.cell(cw[2], h_row, "", 1, 0)
+
+                # Col 4: Detalii (MultiCell cu chenar corect)
+                x_curr += cw[2]
+                pdf.set_xy(x_curr, y_start)
+                pdf.multi_cell(cw[3], 5, pdf.safe_text(desc_str), 0, 'L')
+                pdf.set_xy(x_curr, y_start)
+                pdf.cell(cw[3], h_row, "", 1, 0)
+
+                # Col 5: Operator
+                x_curr += cw[3]
+                pdf.set_xy(x_curr, y_start)
+                pdf.cell(cw[4], h_row, pdf.safe_text(user_str), 1, 0, 'C')
+
+                # Mutăm cursorul jos pentru următorul rând
+                pdf.set_y(y_start + h_row)
+
         else:
             pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", '', 10)
             pdf.cell(0, 10, pdf.safe_text("Nu există intervenții înregistrate."), 0, 1, 'L')
