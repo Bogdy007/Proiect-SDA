@@ -36,6 +36,26 @@
             background-color: var(--border-color);
             transform: none !important;
         }
+
+        /* --- STIL PENTRU TEXTAREA --- */
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--input-bg);
+            color: var(--text-dark);
+            font-family: inherit;
+            font-size: 1rem;
+            resize: vertical; /* Permite redimensionare pe verticală */
+            min-height: 100px; /* Înălțime minimă mai mare */
+            box-sizing: border-box; /* Include padding în lățime */
+        }
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary-color, #2563eb);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -120,14 +140,31 @@
             const fields = (type === 'echipament') ? fieldsEchipament : fieldsPeriferic;
 
             fields.forEach(f => {
-                let inputType = 'text';
-                if(f.includes('DATA')) inputType = 'date';
-
                 let label = f.replace(/_/g, ' ');
+                let inputHtml = '';
+
+                // --- LISTA CÂMPURILOR MARI (TEXTAREA) ---
+                const campuriMari = ['OBS', 'OBS2', 'PERIFERICE'];
+
+                // Verificăm dacă câmpul curent este unul dintre cele mari
+                if (campuriMari.includes(f)) {
+                    // Generăm <textarea> în loc de <input>
+                    inputHtml = `<textarea name="${f}" rows="4"></textarea>`;
+                } else {
+                    // Generăm input normal
+                    let inputType = 'text';
+                    if(f.includes('DATA')) inputType = 'date';
+                    inputHtml = `<input type="${inputType}" name="${f}" ${f==='NR_INVENTAR'?'required':''}>`;
+                }
+
+                // Stil inline pentru a extinde containerul pe toată lățimea grid-ului
+                // grid-column: 1 / -1 înseamnă de la prima linie verticală până la ultima
+                const styleDiv = campuriMari.includes(f) ? 'style="grid-column: 1 / -1;"' : '';
+
                 let html = `
-                <div class="form-group">
+                <div class="form-group" ${styleDiv}>
                     <label>${label}</label>
-                    <input type="${inputType}" name="${f}" ${f==='NR_INVENTAR'?'required':''}>
+                    ${inputHtml}
                 </div>`;
                 container.innerHTML += html;
             });
