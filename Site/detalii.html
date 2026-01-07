@@ -10,15 +10,33 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 
     <style>
+        /* --- STILURI TABEL (FIX PENTRU TEXT LUNG) --- */
         .table-scroll-container {
             overflow-x: auto;
             width: 100%;
             border: 1px solid var(--border-color);
             border-radius: 8px;
+            margin-bottom: 20px;
         }
+
         #istoric-interventii table {
-            min-width: 1000px;
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1200px; /* Forțăm o lățime minimă ca să aibă loc textul */
         }
+
+        #istoric-interventii th, #istoric-interventii td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: top; /* Aliniere sus pentru text mult */
+        }
+
+        /* Lățimi specifice pentru coloane ca să nu se strivească */
+        #istoric-interventii td:nth-child(7) { min-width: 300px; } /* Descriere */
+        #istoric-interventii td:nth-child(8) { min-width: 200px; } /* Componente */
+        #istoric-interventii td:nth-child(11) { min-width: 200px; } /* Observații */
+
         .action-buttons {
             display: flex;
             gap: 5px;
@@ -53,7 +71,7 @@
             transform: none !important;
         }
 
-        /* --- STILURI MODAL (REPARATE PENTRU SCROLL) --- */
+        /* --- STILURI MODAL --- */
         .modal-backdrop {
             display: none;
             position: fixed;
@@ -73,12 +91,10 @@
             color: var(--text-dark);
             padding: 30px;
             border-radius: 16px;
-            width: 95%; /* Mai lat pe mobil */
-            max-width: 600px; /* Limită pe desktop */
-
-            /* --- FIX-UL PENTRU SCROLL AICI --- */
-            max-height: 90vh; /* Maxim 90% din înălțimea ecranului */
-            overflow-y: auto; /* Adaugă scrollbar dacă e prea lung */
+            width: 95%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
             animation: slideDown 0.3s ease;
         }
@@ -99,6 +115,26 @@
             color: var(--text-light);
         }
         .close-button:hover { color: #ef4444; }
+
+        /* --- STIL TEXTAREA --- */
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--input-bg);
+            color: var(--text-dark);
+            font-family: inherit;
+            font-size: 0.95rem;
+            resize: vertical;
+            min-height: 80px;
+            box-sizing: border-box;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary-color, #2563eb);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
 
     </style>
 
@@ -184,11 +220,14 @@
                     <div class="form-group"><label>Operator</label><input type="text" name="OPERATOR" required></div>
                     <div class="form-group"><label>Durata</label><input type="text" name="DURATA_INTERVENTIE"></div>
                 </div>
+
                 <div class="form-group"><label>Descriere Detaliată</label><textarea name="DESCRIERE_INTERVENTIE" rows="3"></textarea></div>
                 <div class="form-group"><label>Componente Schimbate</label><textarea name="componente_schimbate_adaugate" rows="2"></textarea></div>
                 <div class="form-group"><label>Observații</label><textarea name="OBSERVATII" rows="2"></textarea></div>
+
                 <input type="hidden" id="modal-tip-echip" name="TIP_ECHIPAMENT">
-                <div class="form-actions">
+
+                <div class="form-actions" style="margin-top: 20px;">
                     <button type="button" class="btn" id="cancel-modal-btn" style="background-color: #6c757d;">Anulează</button>
                     <button type="submit" class="btn" id="submit-modal-btn">Salvează</button>
                 </div>
@@ -247,16 +286,14 @@
             return `<p><strong>${label}</strong> <span>${valStr}</span></p>`;
         }
 
-        // --- VERIFICARE UTILIZATOR (AICI E MODIFICAREA IMPORTANTĂ) ---
+        // --- VERIFICARE UTILIZATOR ---
         async function checkUser() {
             try {
                 const res = await fetch('/api/me');
                 const user = await res.json();
 
                 if (!user.logged_in) {
-                    // 1. Salvăm link-ul paginii curente în buzunar (localStorage)
                     localStorage.setItem('url_destinatie', window.location.href);
-                    // 2. Trimitem la login
                     window.location.href = 'login.html';
                     return;
                 }
@@ -341,7 +378,7 @@
             tipArticolGlobal = params.get('type');
             if (!nrInventarGlobal) return;
 
-            await checkUser(); // Apeleaza verificarea si salvarea link-ului
+            await checkUser();
             incarcaDetaliiArticol(nrInventarGlobal, tipArticolGlobal);
             incarcaInterventii(nrInventarGlobal);
 
