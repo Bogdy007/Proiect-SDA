@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalii Articol</title>
+    <link rel="icon" type="image/png" href="images/logo_intro.png">
+
+    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <style>
+        .table-scroll-container {
+            overflow-x: auto;
+            width: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+        #istoric-interventii table {
+            min-width: 1000px;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        .btn-icon {
+            padding: 5px 8px;
+            font-size: 0.8rem;
+        }
+        .admin-only {
+            display: none;
+        }
+
+        /* --- DARK MODE BUTTON STYLE --- */
+        #dark-mode-toggle {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-dark) !important;
+            padding: 0;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-right: 15px;
+            box-shadow: none !important;
+        }
+        #dark-mode-toggle:hover {
+            background-color: var(--border-color);
+            transform: none !important;
+        }
+
+        /* --- STILURI MODAL (REPARATE PENTRU SCROLL) --- */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            color: var(--text-dark);
+            padding: 30px;
+            border-radius: 16px;
+            width: 95%; /* Mai lat pe mobil */
+            max-width: 600px; /* Limită pe desktop */
+
+            /* --- FIX-UL PENTRU SCROLL AICI --- */
+            max-height: 90vh; /* Maxim 90% din înălțimea ecranului */
+            overflow-y: auto; /* Adaugă scrollbar dacă e prea lung */
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        .close-button {
+            cursor: pointer;
+            font-size: 1.5rem;
+            color: var(--text-light);
+        }
+        .close-button:hover { color: #ef4444; }
+
+    </style>
+
+    <script>
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+    </script>
+</head>
+<body>
+
+    <header style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display:flex; align-items:center;">
+            <h1>
+                <img src="images/logo_intro.png" alt="Logo" class="header-logo">
+                Evidență Echipamente IT
+            </h1>
+        </div>
+
+        <div style="display:flex; align-items: center;">
+            <button id="dark-mode-toggle" title="Schimbă Modul">
+                <i class="fa-solid fa-moon"></i>
+            </button>
+            <div id="user-controls"></div>
+        </div>
+    </header>
+
+    <main class="container">
+
+        <div class="page-actions">
+             <h2 id="titlu-echipament">Se încarcă datele...</h2>
+             <a href="index.html" class="btn" style="background-color: var(--secondary-color);"><i class="fa-solid fa-arrow-left"></i> Înapoi la listă</a>
+        </div>
+
+        <div class="actions">
+            <button onclick="printLabel()" class="btn" style="background-color: #334155; color: white;">
+                <i class="fa-solid fa-qrcode"></i> Printează Etichetă
+            </button>
+
+            <button id="btn-genereaza-pdf" class="btn"><i class="fa-solid fa-file-pdf"></i> Generează Fișă (PDF)</button>
+            <button id="btn-editeaza" class="btn admin-only" style="background-color: #ffc107; color: #000 !important;"><i class="fa-solid fa-pencil"></i> Editează Articol</button>
+            <button id="btn-sterge" class="btn btn-danger admin-only"><i class="fa-solid fa-trash-can"></i> Șterge Articol</button>
+        </div>
+
+        <section class="detalii-echipament">
+            <h3><i class="fa-solid fa-circle-info"></i> Date Articol</h3>
+            <div class="detalii-grid" id="info-articol">
+            </div>
+        </section>
+
+        <div class="page-actions" style="margin-top: 40px;">
+            <h2><i class="fa-solid fa-screwdriver-wrench"></i> Istoric Intervenții</h2>
+            <button id="btn-adauga-interventie" class="btn btn-adauga admin-only"><i class="fa-solid fa-plus"></i> Adaugă Intervenție</button>
+        </div>
+
+        <section id="istoric-interventii">
+            <div class="table-scroll-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th><th>Nr. Inv</th><th>Tip Echip.</th><th>Data</th><th>Tip Int.</th><th>Operație</th><th>Descriere</th><th>Componente</th><th>Durată</th><th>Operator</th><th>Observații</th><th>Acțiuni</th>
+                        </tr>
+                    </thead>
+                    <tbody id="interventii-body"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-interventie" class="modal-backdrop">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Adaugă Intervenție Nouă</h2>
+                <span class="close-button" id="close-modal-btn">&times;</span>
+            </div>
+            <form id="form-interventie">
+                <input type="hidden" id="edit-interventie-id" value="">
+                <div class="detalii-grid">
+                    <div class="form-group"><label>Nr. Inventar</label><input type="text" id="modal-nr-inventar" name="NR_INVENTAR" required></div>
+                    <div class="form-group"><label>Data Intervenție</label><input type="date" name="DATA_INTERVENTIE" required></div>
+                    <div class="form-group"><label>Tip Intervenție</label><input type="text" name="TIP_INTERVENTIE" list="list-tipuri"><datalist id="list-tipuri"><option value="Hardware"><option value="Software"><option value="Mentenanță"><option value="Instalare"></datalist></div>
+                    <div class="form-group"><label>Tip Operație</label><input type="text" name="TIP_OPERATIE"></div>
+                    <div class="form-group"><label>Operator</label><input type="text" name="OPERATOR" required></div>
+                    <div class="form-group"><label>Durata</label><input type="text" name="DURATA_INTERVENTIE"></div>
+                </div>
+                <div class="form-group"><label>Descriere Detaliată</label><textarea name="DESCRIERE_INTERVENTIE" rows="3"></textarea></div>
+                <div class="form-group"><label>Componente Schimbate</label><textarea name="componente_schimbate_adaugate" rows="2"></textarea></div>
+                <div class="form-group"><label>Observații</label><textarea name="OBSERVATII" rows="2"></textarea></div>
+                <input type="hidden" id="modal-tip-echip" name="TIP_ECHIPAMENT">
+                <div class="form-actions">
+                    <button type="button" class="btn" id="cancel-modal-btn" style="background-color: #6c757d;">Anulează</button>
+                    <button type="submit" class="btn" id="submit-modal-btn">Salvează</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <footer class="app-footer">
+        <p>© 2026 Parchetul de pe lângă Tribunalul Brașov. Toate drepturile rezervate.</p>
+    </footer>
+
+    <script>
+        const API_BASE = '/api';
+        let nrInventarGlobal = null;
+        let tipArticolGlobal = null;
+        let interventiiGlobal = [];
+        let isAdmin = false;
+
+        // --- DARK MODE LOGIC ---
+        const toggleBtn = document.getElementById('dark-mode-toggle');
+        const icon = toggleBtn.querySelector('i');
+        const html = document.documentElement;
+
+        if (localStorage.getItem('theme') === 'dark') { icon.classList.replace('fa-moon', 'fa-sun'); }
+
+        toggleBtn.addEventListener('click', () => {
+            if (html.getAttribute('data-theme') === 'dark') {
+                html.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+                icon.classList.replace('fa-sun', 'fa-moon');
+            } else {
+                html.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+                icon.classList.replace('fa-moon', 'fa-sun');
+            }
+        });
+
+        // --- PRINT QR LABEL ---
+        function printLabel() {
+            if(!nrInventarGlobal) return alert("Eroare: Nu găsesc numărul de inventar.");
+            window.open(`${API_BASE}/print_label/${encodeURIComponent(nrInventarGlobal)}`, '_blank');
+        }
+
+        // --- HELPER DATA ---
+        function formateazaData(text) {
+            if (!text || text === 'None' || text === '-') return '-';
+            try {
+                const date = new Date(text);
+                if (isNaN(date.getTime())) return text;
+                return `${String(date.getDate()).padStart(2,'0')}.${String(date.getMonth()+1).padStart(2,'0')}.${date.getFullYear()}`;
+            } catch (e) { return text; }
+        }
+
+        function createDetailField(label, value) {
+            const valStr = (value && value !== 'None' && value !== 'null') ? value : '-';
+            return `<p><strong>${label}</strong> <span>${valStr}</span></p>`;
+        }
+
+        // --- VERIFICARE UTILIZATOR (AICI E MODIFICAREA IMPORTANTĂ) ---
+        async function checkUser() {
+            try {
+                const res = await fetch('/api/me');
+                const user = await res.json();
+
+                if (!user.logged_in) {
+                    // 1. Salvăm link-ul paginii curente în buzunar (localStorage)
+                    localStorage.setItem('url_destinatie', window.location.href);
+                    // 2. Trimitem la login
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                if (user.role === 'admin') {
+                    isAdmin = true;
+                    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'inline-flex');
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function incarcaDetaliiArticol(nrInventar, tip) {
+            let url = (tip === 'echipament') ? `${API_BASE}/echipament/${encodeURIComponent(nrInventar)}` : `${API_BASE}/periferic/${encodeURIComponent(nrInventar)}`;
+            fetch(url).then(r => r.json()).then(item => {
+                if (!item || item.eroare) { document.getElementById('titlu-echipament').textContent = `Eroare: Articolul nu a fost găsit.`; return; }
+
+                document.getElementById('titlu-echipament').innerHTML = `<i class="fa-solid fa-barcode"></i> ${item.NR_INVENTAR} <small style="font-size:0.6em; color:#666;">(${item.CATEGORIE})</small>`;
+                const container = document.getElementById('info-articol');
+                container.innerHTML = '';
+
+                const displayField = (key) => {
+                    let label = key.replace(/_/g, ' ');
+                    label = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+                    let val = item[key];
+                    if (key.includes('DATA')) val = formateazaData(val);
+                    container.innerHTML += createDetailField(label, val);
+                };
+
+                if (tip === 'echipament') {
+                    const fields = ['NR_INVENTAR', 'CATEGORIE', 'TIP_CALC', 'NUME_PC', 'UTILIZATOR', 'NR_USER', 'DATA_ACHIZITIE', 'ETAJ', 'FUNCTIE', 'IP', 'RETEA', 'SERIE_UC', 'SERIE_MON', 'MEMORIE', 'SISTEM_OPERARE', 'LICENTA_SO', 'OFFICE', 'LICENTA_OFFICE', 'ANTIVIRUS', 'CAMERA', 'TELEFON', 'PERIFERICE', 'PARCHET', 'PASS', 'OBS'];
+                    fields.forEach(key => { if(item[key] !== undefined) displayField(key); });
+                } else {
+                    for (const [key, val] of Object.entries(item)) { if(!['id', 'ID'].includes(key)) displayField(key); }
+                }
+            }).catch(e => document.getElementById('info-articol').innerHTML = '<p style="color:red">Eroare server.</p>');
+        }
+
+        function incarcaInterventii(nrInventar) {
+            const tb = document.getElementById('interventii-body');
+            tb.innerHTML = '<tr><td colspan="12">Se încarcă istoricul...</td></tr>';
+            fetch(`${API_BASE}/interventii/${encodeURIComponent(nrInventar)}`).then(r => r.json()).then(data => {
+                tb.innerHTML = '';
+                if (!data || data.length === 0) { tb.innerHTML = '<tr><td colspan="12" style="text-align: center;">Nu există intervenții.</td></tr>'; return; }
+                interventiiGlobal = data;
+                data.forEach(i => {
+                    const id = i.ID_INTERVENTIE || i.id_interventie || i.id;
+                    const act = isAdmin ? `<div class="action-buttons"><button class="btn btn-icon" style="background:#ffc107;color:black;" onclick="deschideModalEditare(${id})"><i class="fa-solid fa-pencil"></i></button><button class="btn btn-danger btn-icon" onclick="stergeInterventie(${id})"><i class="fa-solid fa-trash"></i></button></div>` : '-';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${id}</td><td>${i.NR_INVENTAR||'-'}</td><td>${i.TIP_ECHIPAMENT||'-'}</td><td>${formateazaData(i.DATA_INTERVENTIE)}</td><td>${i.TIP_INTERVENTIE||'-'}</td><td>${i.TIP_OPERATIE||'-'}</td><td>${i.DESCRIERE_INTERVENTIE||'-'}</td><td>${i.componente_schimbate_adaugate||'-'}</td><td>${i.DURATA_INTERVENTIE||'-'}</td><td>${i.OPERATOR||'-'}</td><td>${i.OBSERVATII||'-'}</td><td>${act}</td>`;
+                    tb.appendChild(tr);
+                });
+            });
+        }
+
+        function stergeInterventie(id) {
+            if(confirm("Ștergi intervenția?")) fetch(`${API_BASE}/interventii/delete/${id}`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.succes) incarcaInterventii(nrInventarGlobal); else alert(d.eroare); });
+        }
+
+        function deschideModalEditare(id) {
+            const item = interventiiGlobal.find(i => (i.ID_INTERVENTIE || i.id_interventie || i.id) == id);
+            if (!item) return;
+            const form = document.getElementById('form-interventie');
+            form.reset();
+            document.getElementById('modal-title').textContent = "Editează Intervenție";
+            document.getElementById('edit-interventie-id').value = id;
+            document.getElementById('modal-nr-inventar').value = item.NR_INVENTAR;
+            document.getElementById('modal-tip-echip').value = item.TIP_ECHIPAMENT;
+
+            for (const [k, v] of Object.entries(item)) {
+                const el = form.querySelector(`[name="${k}"]`);
+                if(el) el.value = v;
+            }
+            if(item.DATA_INTERVENTIE) {
+                try { form.querySelector('[name="DATA_INTERVENTIE"]').value = new Date(item.DATA_INTERVENTIE).toISOString().split('T')[0]; } catch(e){}
+            }
+            document.getElementById('modal-interventie').style.display = 'flex';
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const params = new URLSearchParams(window.location.search);
+            nrInventarGlobal = params.get('id');
+            tipArticolGlobal = params.get('type');
+            if (!nrInventarGlobal) return;
+
+            await checkUser(); // Apeleaza verificarea si salvarea link-ului
+            incarcaDetaliiArticol(nrInventarGlobal, tipArticolGlobal);
+            incarcaInterventii(nrInventarGlobal);
+
+            document.getElementById('btn-genereaza-pdf').onclick = () => window.open(`${API_BASE}/print/${encodeURIComponent(nrInventarGlobal)}`, '_blank');
+            document.getElementById('btn-editeaza').onclick = () => window.location.href = `formular.html?type=${tipArticolGlobal}&id=${encodeURIComponent(nrInventarGlobal)}`;
+            document.getElementById('btn-sterge').onclick = () => { if(confirm('Sigur ștergi articolul?')) fetch(`${API_BASE}/assets/delete/${encodeURIComponent(nrInventarGlobal)}`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.succes) window.location.href='index.html'; else alert(d.eroare); }); };
+
+            const modal = document.getElementById('modal-interventie');
+            const form = document.getElementById('form-interventie');
+            document.getElementById('btn-adauga-interventie').onclick = () => {
+                form.reset();
+                document.getElementById('modal-title').textContent = "Adaugă Intervenție";
+                document.getElementById('edit-interventie-id').value = "";
+                document.getElementById('modal-nr-inventar').value = nrInventarGlobal;
+                document.querySelector('[name="DATA_INTERVENTIE"]').valueAsDate = new Date();
+                modal.style.display = 'flex';
+            };
+            const inchide = () => modal.style.display = 'none';
+            document.getElementById('close-modal-btn').onclick = inchide;
+            document.getElementById('cancel-modal-btn').onclick = inchide;
+
+            form.onsubmit = (e) => {
+                e.preventDefault();
+                const data = Object.fromEntries(new FormData(form).entries());
+                const id = document.getElementById('edit-interventie-id').value;
+                const url = id ? `${API_BASE}/interventii/update/${id}` : `${API_BASE}/interventii/add`;
+                const method = id ? 'PUT' : 'POST';
+                fetch(url, { method: method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
+                .then(r=>r.json()).then(d => { if(d.succes) { inchide(); incarcaInterventii(nrInventarGlobal); } else alert(d.eroare); });
+            };
+        });
+    </script>
+</body>
+</html>

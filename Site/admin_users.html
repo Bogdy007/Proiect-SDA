@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administrare Utilizatori</title>
+    <link rel="icon" type="image/png" href="images/logo_intro.png">
+
+    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+
+        document.documentElement.style.opacity = '0';
+        document.documentElement.style.transition = 'opacity 0.5s ease-in-out';
+
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
+                window.location.reload();
+            }
+        });
+    </script>
+
+    <style>
+        /* --- ADMIN STYLES ADAPTED --- */
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-dark);
+        }
+
+        .header-admin {
+            background: var(--bg-card);
+            padding: 20px 40px; display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 40px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-dark);
+        }
+
+        .header-title {
+            font-size: 1.5rem; font-weight: 700; color: var(--text-dark);
+            display: flex; align-items: center; gap: 15px;
+        }
+
+        #dark-mode-toggle {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-dark) !important;
+            padding: 0;
+            border-radius: 50%;
+            width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.3s; margin-right: 15px;
+            box-shadow: none !important;
+        }
+        #dark-mode-toggle:hover {
+            background-color: var(--border-color);
+        }
+
+        .add-card {
+            background: var(--bg-card);
+            padding: 30px; border-radius: 16px; margin-bottom: 40px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            color: var(--text-dark);
+        }
+
+        .add-card h3 { color: var(--text-dark) !important; }
+
+        /* --- FORM GRID FIX --- */
+        .add-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto; /* 3 columns + button */
+            gap: 20px;
+            align-items: end;
+        }
+
+        /* Inputs */
+        .add-grid input[type="text"],
+        .add-grid input[type="password"],
+        .add-grid select {
+            width: 100%;
+            height: 48px !important;
+            padding: 0 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            background-color: var(--input-bg);
+            color: var(--text-dark);
+            box-sizing: border-box;
+            display: flex; align-items: center;
+        }
+
+        .add-grid label { color: var(--text-dark); margin-bottom: 5px; display: block; font-weight: 600; font-size: 0.85rem; }
+
+        .add-grid input:focus, .add-grid select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+
+        /* Create Button */
+        #btn-create-user {
+            height: 48px !important; padding: 0 25px; font-size: 1rem;
+            display: flex; align-items: center; justify-content: center; margin-bottom: 0;
+            width: 100%;
+        }
+
+        /* --- USER CARDS --- */
+        .users-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; }
+
+        .user-card {
+            background: var(--bg-card);
+            padding: 25px; border-radius: 16px; position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+            display: flex; flex-direction: column; gap: 15px; transition: all 0.3s ease;
+            color: var(--text-dark);
+        }
+        .user-card:hover { transform: translateY(-5px); box-shadow: 0 15px 25px -5px rgba(0,0,0,0.1); }
+
+        .user-header { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
+        .avatar {
+            width: 50px; height: 50px; background: #eff6ff; color: #2563eb; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700;
+        }
+        .user-info h4 { margin: 0; font-size: 1.1rem; color: var(--text-dark); }
+        .user-info span { font-size: 0.85rem; color: var(--text-light); }
+
+        .badge-alert {
+            display: inline-flex; align-items: center; gap: 5px;
+            background-color: #fee2e2; color: #dc2626;
+            font-size: 0.7rem; padding: 4px 8px; border-radius: 12px;
+            font-weight: 700; border: 1px solid #fca5a5;
+            margin-top: 5px; animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+        .role-select {
+            width: 100%; padding: 10px; border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background-color: var(--input-bg);
+            color: var(--text-dark);
+            font-weight: 500; cursor: pointer; transition: all 0.2s;
+        }
+        .role-select.is-admin { border-left: 4px solid #10b981; }
+        .role-select.is-viewer { border-left: 4px solid #64748b; }
+
+        .reset-btn {
+            padding: 10px; border-radius: 8px;
+            border: 1px solid #f59e0b !important;
+            background-color: #fffbeb !important;
+            color: #b45309 !important;
+            font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; cursor: pointer; transition: all 0.2s;
+        }
+        .reset-btn:hover { background-color: #f59e0b !important; color: white !important; }
+        .reset-btn i { color: #b45309 !important; }
+        .reset-btn:hover i { color: white !important; }
+
+        .delete-btn {
+            margin-top: auto; padding: 10px; border-radius: 8px;
+            font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; transition: all 0.2s; border: none;
+        }
+        .delete-btn:not(:disabled) { background-color: #ef4444; color: white; cursor: pointer; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3); }
+        .delete-btn:not(:disabled):hover { background-color: #dc2626; transform: translateY(-2px); }
+        .delete-btn:disabled { background-color: #e5e7eb !important; color: #9ca3af !important; border: 1px solid #d1d5db !important; cursor: not-allowed; }
+
+        /* --- MODAL --- */
+        .modal-backdrop {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5); z-index: 1000; justify-content: center; align-items: center;
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background: var(--bg-card);
+            color: var(--text-dark);
+            padding: 30px; border-radius: 16px; width: 100%; max-width: 400px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); animation: slideDown 0.3s ease;
+        }
+        .modal-content h2 { color: var(--text-dark); }
+
+        @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); }
+        .close-modal { cursor: pointer; font-size: 1.5rem; color: var(--text-light); }
+        .close-modal:hover { color: #ef4444; }
+
+        @media (max-width: 900px) { .add-grid { grid-template-columns: 1fr; } }
+
+        /* --- MOBILE FIX FOR HEADER --- */
+        @media (max-width: 600px) {
+            .header-admin {
+                flex-direction: column;
+                gap: 15px;
+                padding: 20px;
+                text-align: center;
+            }
+            .header-title {
+                width: 100%;
+                justify-content: center;
+                margin-bottom: 10px;
+            }
+            .header-admin > div:last-child {
+                width: 100%;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            #btn-back {
+                width: 100%; /* Make button full width on mobile */
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-admin">
+        <div class="header-title">
+            <img src="images/logo_intro.png" style="width: 50px;" alt="Logo">
+            <span>Panou Administrator</span>
+        </div>
+        <div style="display: flex; align-items: center;">
+            <button id="dark-mode-toggle" title="Schimbă Modul">
+                <i class="fa-solid fa-moon"></i>
+            </button>
+
+            <button id="btn-back" class="btn" style="background-color: #64748b; color: white; border:none; cursor:pointer; padding: 12px 25px; border-radius: 10px;">
+                <i class="fa-solid fa-arrow-left"></i> Înapoi la Dashboard
+            </button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="add-card">
+            <h3 style="margin-bottom: 25px; display: flex; align-items: center;">
+                <span class="icon-box"><i class="fa-solid fa-user-plus"></i></span>
+                Adaugă Utilizator Nou
+            </h3>
+
+            <form id="add-user-form">
+                <div class="add-grid">
+                    <div>
+                        <label>Nume Utilizator</label>
+                        <input type="text" id="new-user" placeholder="ex: popescu" required>
+                    </div>
+
+                    <div style="width: 100%;">
+                        <label>Parolă</label>
+                        <div style="position:relative; width: 100%;">
+                            <input type="password" id="new-pass" placeholder="••••••" required
+                                   style="padding-right: 45px; width: 100%; box-sizing: border-box;">
+                            <i class="fa-solid fa-eye toggle-pass-icon" onclick="togglePass('new-pass', this)"
+                               style="position: absolute; top: 50%; right: 15px; transform: translateY(-50%); cursor: pointer; color: var(--text-light);"></i>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label>Rol Inițial</label>
+                        <select id="new-role">
+                            <option value="viewer">Viewer (Doar Citire)</option>
+                            <option value="admin">Admin (Acces Total)</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" id="btn-create-user" class="btn" style="background-color:#2563eb; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">
+                        <i class="fa-solid fa-check"></i> &nbsp; Creează Cont
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <h3 style="margin-bottom: 25px; font-size: 1.3rem;">
+            <i class="fa-solid fa-users-line"></i> Lista Utilizatori
+        </h3>
+
+        <div class="users-grid" id="users-list">
+            <div style="grid-column: 1/-1; text-align: center; color: #94a3b8; padding: 40px;">
+                <i class="fa-solid fa-spinner fa-spin fa-2x"></i><br>Se încarcă lista...
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-reset" class="modal-backdrop">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Schimbă Parola</h2>
+                <span class="close-modal" onclick="closeResetModal()">&times;</span>
+            </div>
+            <p id="reset-target-name" style="margin-bottom: 20px; font-size: 0.9rem;">Utilizator: ...</p>
+            <form id="reset-pass-form">
+                <input type="hidden" id="reset-user-id">
+                <div style="margin-bottom: 20px;">
+                    <label style="font-size: 0.85rem; font-weight:600; margin-bottom:5px; display:block;">Noua Parolă</label>
+
+                    <div style="position:relative; width: 100%;">
+                        <input type="password" id="reset-new-pass" placeholder="Scrie noua parolă..." required
+                               style="width: 100%; height: 48px; padding: 0 15px; border: 1px solid var(--border-color); border-radius: 8px; background-color: var(--input-bg); color: var(--text-dark); box-sizing: border-box;">
+
+                        <i class="fa-solid fa-eye toggle-pass-icon" onclick="togglePass('reset-new-pass', this)"
+                           style="position: absolute; top: 50%; right: 15px; transform: translateY(-50%); cursor: pointer; color: var(--text-light);"></i>
+                    </div>
+
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" onclick="closeResetModal()" style="padding: 10px 20px; border-radius: 8px; border: none; background: #e2e8f0; cursor: pointer; color: #475569;">Anulează</button>
+                    <button type="submit" style="padding: 10px 20px; border-radius: 8px; border: none; background: #f59e0b; cursor: pointer; color: white; font-weight: bold;">Salvează Parola</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = "";
+
+        // --- DARK MODE LOGIC ---
+        const toggleBtn = document.getElementById('dark-mode-toggle');
+        const icon = toggleBtn.querySelector('i');
+        const html = document.documentElement;
+
+        if (localStorage.getItem('theme') === 'dark') { icon.classList.replace('fa-moon', 'fa-sun'); }
+
+        toggleBtn.addEventListener('click', () => {
+            if (html.getAttribute('data-theme') === 'dark') {
+                html.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); icon.classList.replace('fa-sun', 'fa-moon');
+            } else {
+                html.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); icon.classList.replace('fa-moon', 'fa-sun');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/me');
+                const u = await res.json();
+                if (!u.logged_in || u.role !== 'admin') { window.location.replace('index.html'); }
+                else {
+                    currentUser = u.username;
+                    await loadUsers();
+                    requestAnimationFrame(() => {
+                        document.documentElement.style.opacity = '1';
+                        document.body.classList.add('loaded');
+                    });
+                }
+            } catch (e) { window.location.replace('login.html'); }
+        });
+
+        document.getElementById('btn-back').onclick = () => {
+            document.documentElement.style.opacity = '0';
+            setTimeout(() => window.location.href = 'index.html', 500);
+        };
+
+        async function loadUsers() {
+            try {
+                const [usersRes, notifyRes] = await Promise.all([ fetch('/api/users'), fetch('/api/admin/notifications') ]);
+                const users = await usersRes.json();
+                const notifications = await notifyRes.json();
+                const usersAskingReset = notifications.map(n => n.username);
+
+                const container = document.getElementById('users-list');
+                container.innerHTML = '';
+
+                users.forEach(u => {
+                    const isAdmin = u.role === 'admin';
+                    const isSuperAdmin = (u.id === 1);
+                    const isMe = (u.username === currentUser);
+                    const canDelete = !isSuperAdmin && !isMe;
+                    const userIcon = isSuperAdmin ? '<i class="fa-solid fa-crown" style="color:gold;"></i> ' : '';
+                    let alertBadge = usersAskingReset.includes(u.username) ? `<div class="badge-alert"><i class="fa-solid fa-bell"></i> CERE RESETARE!</div>` : '';
+
+                    container.innerHTML += `
+                        <div class="user-card" style="${alertBadge ? 'border: 2px solid #fca5a5;' : ''}">
+                            <div class="user-header">
+                                <div class="avatar">${u.username.charAt(0).toUpperCase()}</div>
+                                <div class="user-info">
+                                    <h4>${userIcon}${u.username}</h4>
+                                    <span>ID: #${u.id}</span>
+                                    ${alertBadge}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label style="font-size:0.75rem; color:var(--text-light); font-weight:600;">ROL ACCES</label>
+                                <select class="role-select ${isAdmin ? 'is-admin' : 'is-viewer'}"
+                                        onchange="changeRole(${u.id}, this)" ${!canDelete ? 'disabled' : ''}>
+                                    <option value="admin" ${isAdmin ? 'selected' : ''}>👑 Administrator</option>
+                                    <option value="viewer" ${!isAdmin ? 'selected' : ''}>👁️ Viewer</option>
+                                </select>
+                            </div>
+
+                            <button class="reset-btn" style="color: #b45309 !important;" onclick="openResetModal(${u.id}, '${u.username}')">
+                                <i class="fa-solid fa-key"></i> Resetează Parola
+                            </button>
+
+                            <button class="delete-btn" onclick="deleteUser(${u.id}, '${u.username}')" ${canDelete ? '' : 'disabled'}>
+                                <i class="fa-solid fa-trash-can"></i> Șterge Utilizator
+                            </button>
+                        </div>`;
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        function openResetModal(id, name) {
+            document.getElementById('reset-user-id').value = id;
+            document.getElementById('reset-target-name').innerText = `Se schimbă parola pentru: ${name}`;
+            document.getElementById('reset-new-pass').value = '';
+            document.getElementById('modal-reset').style.display = 'flex';
+        }
+
+        function closeResetModal() { document.getElementById('modal-reset').style.display = 'none'; }
+
+        document.getElementById('reset-pass-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('reset-user-id').value;
+            const newPass = document.getElementById('reset-new-pass').value;
+            try {
+                const res = await fetch('/api/users/reset_password', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: id, new_password: newPass }) });
+                const data = await res.json();
+                if(data.succes) { alert("Parola schimbată!"); closeResetModal(); loadUsers(); } else { alert("Eroare: " + data.eroare); }
+            } catch(err) { alert("Eroare rețea!"); }
+        };
+
+        async function changeRole(id, selectElement) {
+            try {
+                const res = await fetch(`/api/users/update_role/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ role: selectElement.value }) });
+                const data = await res.json();
+                if(data.succes) selectElement.className = `role-select ${selectElement.value === 'admin' ? 'is-admin' : 'is-viewer'}`;
+                else { alert(data.eroare); location.reload(); }
+            } catch (e) { alert("Eroare server."); }
+        }
+
+        async function deleteUser(id, name) {
+            if(!confirm(`Ștergi utilizatorul ${name}?`)) return;
+            const res = await fetch(`/api/users/delete/${id}`, {method:'POST'});
+            const d = await res.json();
+            if(d.succes) await loadUsers(); else alert(d.eroare);
+        }
+
+        document.getElementById('add-user-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const data = { username: document.getElementById('new-user').value, password: document.getElementById('new-pass').value, role: document.getElementById('new-role').value };
+            const res = await fetch('/api/users/add', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+            const d = await res.json();
+            if(d.succes) { alert("Utilizator creat!"); document.getElementById('add-user-form').reset(); await loadUsers(); } else alert(d.eroare);
+        };
+
+        function togglePass(inputId, iconElement) {
+            const inp = document.getElementById(inputId);
+            if(inp.type === 'password'){ inp.type = 'text'; iconElement.classList.replace('fa-eye', 'fa-eye-slash'); }
+            else { inp.type = 'password'; iconElement.classList.replace('fa-eye-slash', 'fa-eye'); }
+        }
+    </script>
+</body>
+</html>

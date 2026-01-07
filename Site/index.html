@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventar IT - Parchetul Brașov</title>
+    <link rel="icon" type="image/png" href="images/logo_intro.png">
+
+    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <style>
+        html { opacity: 0; transition: opacity 0.5s ease-in-out; }
+
+        /* Animație pentru notificări */
+        @keyframes pulseRed {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+        }
+
+        /* --- FIX BUTON DARK MODE (Vizibil) --- */
+        #dark-mode-toggle {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-dark) !important; /* Culoare forțată să nu fie albă */
+            padding: 0;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-right: 15px; /* Spațiu față de notificări */
+            box-shadow: none !important;
+        }
+        #dark-mode-toggle:hover {
+            background-color: var(--border-color);
+            transform: none !important;
+        }
+    </style>
+
+    <script>
+        // Aplicăm tema instant la încărcare
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
+                window.location.reload();
+            }
+        });
+    </script>
+</head>
+<body>
+
+    <header>
+        <h1>
+            <img src="images/logo_intro.png" alt="Logo" class="header-logo">
+            Evidență Echipamente IT
+        </h1>
+
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <button id="dark-mode-toggle" title="Schimbă Modul">
+                <i class="fa-solid fa-moon"></i>
+            </button>
+
+            <div id="admin-notify" style="display:none; background:#fee2e2; color:#dc2626; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer; border:1px solid #fecaca; align-items:center; gap:8px; animation: pulseRed 2s infinite;" onclick="window.location.href='admin_users.html'">
+                <i class="fa-solid fa-bell"></i> <span id="notify-count">0</span>
+            </div>
+
+            <div id="controls" style="display:flex; gap:10px; align-items: center;"></div>
+        </div>
+    </header>
+
+    <main class="container">
+
+        <div class="page-actions">
+            <h2><i class="fa-solid fa-list-ul"></i> Echipamente și Periferice</h2>
+            <a href="select_type.html" class="btn btn-adauga" id="btn-add" style="display:none;"><i class="fa-solid fa-plus"></i> Adaugă Articol Nou</a>
+        </div>
+
+        <section class="filtre">
+            <h3><i class="fa-solid fa-filter"></i> Filtre Căutare</h3>
+
+            <div class="search-row">
+                <div class="input-with-icon">
+                    <i class="fa-solid fa-hashtag"></i>
+                    <input type="text" id="filtru-inventar" placeholder="Nr. Inventar...">
+                </div>
+
+                <div class="input-with-icon">
+                    <i class="fa-solid fa-user"></i>
+                    <input type="text" id="filtru-utilizator" placeholder="Utilizator...">
+                </div>
+
+                <div class="input-with-icon">
+                    <i class="fa-solid fa-building"></i>
+                    <input type="text" id="filtru-locatie" placeholder="Etaj (ex: 1, 2, Parter)...">
+                </div>
+
+                <button id="btn-cauta" class="btn"><i class="fa-solid fa-search"></i> Caută</button>
+            </div>
+
+            <div style="width: 100%; text-align: right; margin-top: 10px;">
+                <a href="#" id="toggle-avansat" style="font-size: 0.9em; color: var(--primary-color); text-decoration: none;">
+                    <i class="fa-solid fa-sliders"></i> Căutare Avansată
+                </a>
+            </div>
+
+            <div id="zona-avansata" class="search-row" style="display: none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px;">
+                <div class="input-with-icon">
+                    <i class="fa-solid fa-desktop"></i>
+                    <input type="text" id="filtru-nume" placeholder="Nume PC / Periferic...">
+                </div>
+                <div class="input-with-icon">
+                    <i class="fa-solid fa-barcode"></i>
+                    <input type="text" id="filtru-serie" placeholder="Serie (S/N)...">
+                </div>
+                <div class="input-with-icon">
+                    <i class="fa-solid fa-network-wired"></i>
+                    <input type="text" id="filtru-ip" placeholder="Adresă IP...">
+                </div>
+                <div class="input-with-icon">
+                    <i class="fa-solid fa-laptop"></i>
+                    <input type="text" id="filtru-tip" placeholder="Tip (ex: Laptop, Imprimantă)...">
+                </div>
+            </div>
+        </section>
+
+        <section class="lista-echipamente">
+            <table id="tabel-echipamente">
+                <thead>
+                    <tr>
+                        <th style="width: 8%;">Nr. Inv</th>
+                        <th style="width: 12%;">Tip</th>
+                        <th style="width: 18%;">Nume PC / Periferic</th>
+                        <th style="width: 12%;">S/N (Serie)</th>
+                        <th style="width: 12%;">Adresă IP</th>
+                        <th style="width: 8%;">Etaj</th>
+                        <th style="width: 15%;">Utilizator</th>
+                        <th style="width: 15%;">Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody id="tabel-body">
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <footer class="app-footer">
+        <p>© 2026 Parchetul de pe lângă Tribunalul Brașov. Toate drepturile rezervate.</p>
+    </footer>
+
+    <script>
+        const API_GET_ALL = '/api/assets/all';
+
+        // --- 1. DARK MODE LOGIC ---
+        const toggleBtn = document.getElementById('dark-mode-toggle');
+        const icon = toggleBtn.querySelector('i');
+        const html = document.documentElement;
+
+        // Setează iconița corectă la start
+        if (localStorage.getItem('theme') === 'dark') {
+            icon.classList.replace('fa-moon', 'fa-sun');
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            if (html.getAttribute('data-theme') === 'dark') {
+                html.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+                icon.classList.replace('fa-sun', 'fa-moon');
+            } else {
+                html.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+                icon.classList.replace('fa-moon', 'fa-sun');
+            }
+        });
+
+        // --- 2. FUNCȚII DE BAZĂ ---
+        async function init() {
+            const res = await fetch('/api/me');
+            const u = await res.json();
+
+            if(!u.logged_in) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const c = document.getElementById('controls');
+            if (u.role === 'admin') {
+                c.innerHTML += `<a href="admin_users.html" class="btn" style="background:#ffc107; color:black; margin-right:10px;">Admin</a>`;
+                document.getElementById('btn-add').style.display = 'inline-flex';
+
+                // Notificări
+                fetch('/api/admin/notifications')
+                    .then(r => r.json())
+                    .then(reqs => {
+                        if (reqs.length > 0) {
+                            const badge = document.getElementById('admin-notify');
+                            document.getElementById('notify-count').innerText = reqs.length + " Cereri Parolă!";
+                            badge.style.display = 'flex';
+                        }
+                    })
+                    .catch(console.error);
+            }
+            c.innerHTML += `<button onclick="logout()" class="btn btn-danger">Logout</button>`;
+
+            incarcaEchipamente(API_GET_ALL);
+
+            requestAnimationFrame(() => {
+                document.documentElement.style.opacity = '1';
+                document.body.classList.add('loaded');
+            });
+        }
+
+        async function logout() {
+            await fetch('/api/logout', {method:'POST'});
+            window.location.reload();
+        }
+
+        document.getElementById('toggle-avansat').addEventListener('click', (e) => {
+            e.preventDefault();
+            const zona = document.getElementById('zona-avansata');
+            if (zona.style.display === 'none') {
+                zona.style.display = 'flex';
+                e.target.innerHTML = '<i class="fa-solid fa-minus"></i> Ascunde Căutare Avansată';
+            } else {
+                zona.style.display = 'none';
+                e.target.innerHTML = '<i class="fa-solid fa-sliders"></i> Căutare Avansată';
+                document.getElementById('filtru-nume').value = '';
+                document.getElementById('filtru-serie').value = '';
+                document.getElementById('filtru-ip').value = '';
+                document.getElementById('filtru-tip').value = '';
+            }
+        });
+
+        function incarcaEchipamente(url) {
+            const tabelBody = document.getElementById('tabel-body');
+            tabelBody.innerHTML = '<tr><td colspan="8" style="text-align:center"><i class="fa-solid fa-spinner fa-spin"></i> Se încarcă...</td></tr>';
+
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) throw new Error('Eroare rețea');
+                    return response.json();
+                })
+                .then(data => {
+                    tabelBody.innerHTML = '';
+                    if (!data || data.length === 0) {
+                        tabelBody.innerHTML = '<tr><td colspan="8" style="text-align:center">Nu au fost găsite articole conform criteriilor.</td></tr>';
+                        return;
+                    }
+
+                    data.forEach(item => {
+                        const tr = document.createElement('tr');
+
+                        let tipArticol = 'echipament';
+                        if (item.CATEGORIE && item.CATEGORIE.toLowerCase().includes('periferic')) {
+                            tipArticol = 'periferic';
+                        }
+
+                        // --- AICI AM ADĂUGAT BUTONUL DE QR CODE ÎN TABEL ---
+                        tr.innerHTML = `
+                            <td><strong>${item.NR_INVENTAR}</strong></td>
+                            <td>${item.TIP || '-'}</td>
+                            <td>${item.NUME || '-'}</td>
+                            <td><span style="font-family: monospace; font-size: 0.9em;">${item.SERIE || '-'}</span></td>
+                            <td>${item.IP || '-'}</td>
+                            <td>${item.ETAJ || ''}</td>
+                            <td>${item.UTILIZATOR || '-'}</td>
+                            <td style="display: flex; gap: 5px;">
+                                <button
+                                    class="btn"
+                                    style="padding: 5px 10px; font-size: 0.8em; background-color: #334155; width: auto;"
+                                    title="Printează Etichetă QR"
+                                    onclick="window.open('/api/print_label/${item.NR_INVENTAR}', '_blank')">
+                                    <i class="fa-solid fa-qrcode"></i>
+                                </button>
+                                <button
+                                    class="btn"
+                                    style="padding: 5px 10px; font-size: 0.8em; background-color: var(--primary-color); width: auto;"
+                                    onclick="window.location.href='detalii.html?id=${item.NR_INVENTAR}&type=${tipArticol}'">
+                                    Detalii
+                                </button>
+                            </td>
+                        `;
+                        tabelBody.appendChild(tr);
+                    });
+                })
+                .catch(error => {
+                    console.error(error);
+                    tabelBody.innerHTML = '<tr><td colspan="8" style="color: red; text-align: center;">Eroare la conectarea cu serverul API.</td></tr>';
+                });
+        }
+
+        function performSearch() {
+            const params = new URLSearchParams();
+            const mapping = {
+                'nr_inventar': 'filtru-inventar', 'utilizator': 'filtru-utilizator', 'etaj': 'filtru-locatie',
+                'nume': 'filtru-nume', 'serie': 'filtru-serie', 'ip': 'filtru-ip', 'tip': 'filtru-tip'
+            };
+            for (const [key, elementId] of Object.entries(mapping)) {
+                const val = document.getElementById(elementId).value.trim();
+                if (val) params.append(key, val);
+            }
+            const url = `${API_GET_ALL}?${params.toString()}`;
+            incarcaEchipamente(url);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+
+            document.getElementById('btn-cauta').addEventListener('click', performSearch);
+            document.querySelectorAll('.filtre input').forEach(el => {
+                el.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') performSearch();
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>

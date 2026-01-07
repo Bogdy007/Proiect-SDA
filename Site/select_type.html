@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selectați Tipul Articolului</title>
+    <link rel="icon" type="image/png" href="images/logo_intro.png">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        .selection-container {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .selection-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-lg);
+            padding: 40px;
+            text-align: center;
+            width: 300px;
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition-speed);
+            cursor: pointer;
+            color: var(--text-dark);
+            text-decoration: none;
+        }
+        .selection-box:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-color);
+        }
+        .selection-box i {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+        .selection-box h3 {
+            font-size: 1.5rem;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>
+            <img src="images/logo_intro.png" alt="Logo" class="header-logo">
+            Evidență Echipamente IT
+        </h1>
+    </header>
+
+    <main class="container">
+
+        <div class="page-actions">
+            <h2><i class="fa-solid fa-plus-circle"></i> Adăugare Articol Nou</h2>
+            <a href="index.html" class="btn" style="background-color: var(--secondary-color);"><i class="fa-solid fa-arrow-left"></i> Înapoi la listă</a>
+        </div>
+
+        <div class="form-container" style="text-align: center;">
+            <h3>Ce tip de articol doriți să adăugați?</h3>
+            <div class="selection-container">
+                <a href="formular.html?type=echipament" class="selection-box">
+                    <i class="fa-solid fa-laptop-code"></i>
+                    <h3>Echipament IT</h3>
+                    <p>(PC, Laptop, Server)</p>
+                </a>
+                <a href="formular.html?type=periferic" class="selection-box">
+                    <i class="fa-solid fa-print"></i>
+                    <h3>Periferic</h3>
+                    <p>(Imprimantă, Scanner, Cameră)</p>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <footer class="app-footer">
+        <p>© 2026 Parchetul de pe lângă Tribunalul Brașov. Toate drepturile rezervate.</p>
+    </footer>
+
+</body>
+</html>

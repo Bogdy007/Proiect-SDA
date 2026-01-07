@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autentificare - Parchetul Brașov</title>
+    <link rel="icon" type="image/png" href="images/logo_intro.png">
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <style>
+        /* --- STILURI DE BAZĂ --- */
+        body {
+            background-color: #f8fafc;
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            /* Ascundem conținutul (formularul) inițial */
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Când adăugăm clasa .loaded, corpul paginii devine vizibil */
+        body.loaded { opacity: 1; }
+
+        /* --- INTRO SCREEN --- */
+        #intro-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: white;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            /* Tranziție pentru dispariție */
+            transition: opacity 0.8s ease, visibility 0.8s;
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Când adăugăm clasa .intro-done, intro-ul dispare complet */
+        body.intro-done #intro-screen {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .intro-logo { width: 100px; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+        /* --- CARD LOGIN --- */
+        .login-card {
+            background: white;
+            width: 90%;
+            max-width: 400px;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+
+        .login-header img { width: 60px; margin-bottom: 15px; }
+        .login-header h2 { margin: 0 0 30px 0; color: #1e293b; font-weight: 700; font-size: 1.5rem; }
+
+        /* --- FORMULAR --- */
+        .form-group { margin-bottom: 20px; text-align: left; }
+        .form-group label { display: block; margin-bottom: 8px; color: #64748b; font-size: 0.9rem; font-weight: 500; }
+
+        .input-wrapper { position: relative; width: 100%; }
+
+        .input-wrapper input {
+            width: 100%; height: 48px;
+            padding: 10px 45px 10px 45px;
+            border: 1px solid #cbd5e1; border-radius: 10px;
+            font-size: 1rem; color: #334155;
+            box-sizing: border-box; transition: 0.3s;
+            background: #f8fafc; font-family: 'Poppins', sans-serif;
+        }
+
+        .input-wrapper input:focus {
+            outline: none; border-color: #2563eb; background: #fff;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+
+        .input-icon-left {
+            position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
+            color: #94a3b8; font-size: 1.1rem; pointer-events: none;
+        }
+
+        .password-toggle {
+            position: absolute; right: 15px; top: 50%; transform: translateY(-50%);
+            color: #94a3b8; cursor: pointer; font-size: 1.1rem; padding: 5px;
+            z-index: 10; transition: color 0.3s;
+        }
+        .password-toggle:hover { color: #2563eb; }
+
+        /* --- BUTOANE --- */
+        .btn-login {
+            width: 100%; padding: 14px;
+            background-color: #2563eb; color: white;
+            border: none; border-radius: 10px;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            transition: 0.3s; margin-top: 10px;
+            font-family: 'Poppins', sans-serif;
+        }
+        .btn-login:hover { background-color: #1d4ed8; transform: translateY(-2px); }
+        .btn-login:disabled { background-color: #94a3b8; cursor: not-allowed; transform: none; }
+
+        /* --- LINK PAROLĂ UITATĂ --- */
+        .forgot-link {
+            margin-top: 20px;
+            font-size: 0.9rem;
+        }
+        .forgot-link a {
+            color: #64748b;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        .forgot-link a:hover {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+
+        #error-msg {
+            color: #ef4444; background: #fef2f2; padding: 10px;
+            border-radius: 8px; margin-top: 15px; font-size: 0.9rem;
+            display: none; border: 1px solid #fee2e2;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="intro-screen">
+        <img src="images/logo_intro.png" class="intro-logo" alt="Logo">
+        <h2 style="color: #1e293b; margin-top: 20px; font-weight: 600;">Aplicație Inventar IT</h2>
+        <p style="color: #64748b;">Se inițializează...</p>
+    </div>
+
+    <div class="login-card">
+        <div class="login-header">
+            <img src="images/logo_intro.png" alt="Logo">
+            <h2>Autentificare</h2>
+        </div>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label>Utilizator</label>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-user input-icon-left"></i>
+                    <input type="text" id="username" placeholder="Nume utilizator" required autocomplete="username">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Parolă</label>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-lock input-icon-left"></i>
+                    <input type="password" id="password" placeholder="Parola" required autocomplete="current-password">
+                    <i class="fa-solid fa-eye password-toggle" id="toggle-pass"></i>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-login">Conectare</button>
+
+            <div class="forgot-link">
+                <a href="#" onclick="openForgotModal(); return false;">
+                    Ai uitat parola?
+                </a>
+            </div>
+
+            <div id="error-msg"></div>
+        </form>
+    </div>
+
+    <div id="modal-forgot" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; justify-content:center; align-items:center;">
+        <div style="background:white; padding:30px; border-radius:16px; width:90%; max-width:350px; text-align:center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <h3 style="margin-top:0; color:#1e293b;">Cerere Resetare Parolă</h3>
+            <p style="color:#64748b; font-size:0.9rem; margin-bottom: 20px;">
+                Scrie numele tău de utilizator. Un administrator va primi o notificare și te va contacta.
+            </p>
+
+            <input type="text" id="forgot-username" placeholder="Nume utilizator..."
+                   style="width:100%; padding:12px; margin-bottom:20px; border:1px solid #cbd5e1; border-radius:8px; box-sizing: border-box;">
+
+            <div style="display:flex; gap:10px; justify-content:center;">
+                <button onclick="document.getElementById('modal-forgot').style.display='none'"
+                        style="padding:10px 20px; border:none; background:#e2e8f0; border-radius:8px; cursor:pointer; font-weight:600; color:#475569;">
+                    Anulează
+                </button>
+                <button onclick="trimiteCerere()"
+                        style="padding:10px 20px; border:none; background:#2563eb; color:white; border-radius:8px; cursor:pointer; font-weight:600;">
+                    Trimite
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. FUNCȚIE DE RESETARE COMPLETĂ A ANIMAȚIEI (Fără stiluri inline!)
+        function resetAnimationState() {
+            // Ștergem clasele care ascund/arată elemente
+            document.body.classList.remove('intro-done');
+            document.body.classList.remove('loaded');
+
+            // Foarte important: Ștergem stilurile inline puse anterior (dacă există)
+            // pentru a lăsa CSS-ul să funcționeze corect
+            const intro = document.getElementById('intro-screen');
+            intro.style.removeProperty('opacity');
+            intro.style.removeProperty('visibility');
+        }
+
+        // 2. LOGICĂ DE SESIUNE
+        async function checkSession() {
+            try {
+                const res = await fetch('/api/me');
+                const u = await res.json();
+
+                if (u.logged_in) {
+                    // Logat -> Plecăm instant
+                    window.location.replace('index.html');
+                } else {
+                    // Ne-logat -> Rulăm animația
+                    runIntroAnimation();
+                }
+            } catch (e) {
+                runIntroAnimation();
+            }
+        }
+
+        function runIntroAnimation() {
+            // Facem pagina vizibilă (formularul e sub intro)
+            document.body.classList.add('loaded');
+
+            // După 1.5 secunde, ascundem intro-ul
+            setTimeout(() => {
+                document.body.classList.add('intro-done');
+            }, 1500);
+        }
+
+        // 3. EVENIMENTE PAGINĂ (Fix pentru Cache/Swipe Back)
+        window.addEventListener('pageshow', (event) => {
+            // Resetăm totul la starea inițială (Ecran Alb / Intro)
+            resetAnimationState();
+
+            // Verificăm din nou sesiunea
+            checkSession();
+        });
+
+        // 4. RESTUL LOGICII (Parolă, Submit)
+        document.getElementById('toggle-pass').addEventListener('click', function() {
+            const input = document.getElementById('password');
+            if(input.type === 'password') {
+                input.type = 'text';
+                this.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                input.type = 'password';
+                this.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        });
+
+        document.getElementById('login-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = document.querySelector('.btn-login');
+            const err = document.getElementById('error-msg');
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verificare...';
+            btn.disabled = true;
+            err.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                const data = await res.json();
+
+                if (data.succes) {
+                    btn.innerHTML = '<i class="fa-solid fa-check"></i> Succes!';
+                    btn.style.backgroundColor = '#10b981';
+
+                    // --- PREGĂTIRE PENTRU CACHE ---
+                    // Înainte de redirect, ascundem formularul și arătăm intro-ul.
+                    // Așa browserul va ține minte ecranul ALB, nu formularul.
+                    document.body.classList.remove('intro-done');
+                    document.body.classList.remove('loaded');
+                    // ------------------------------
+
+                    setTimeout(() => {
+                        const destinatie = localStorage.getItem('url_destinatie');
+                        if (destinatie) {
+                            localStorage.removeItem('url_destinatie');
+                            window.location.href = destinatie;
+                        } else {
+                            window.location.href = 'index.html';
+                        }
+                    }, 200);
+                } else {
+                    throw new Error(data.eroare || 'Date incorecte');
+                }
+            } catch (e) {
+                btn.innerHTML = 'Conectare';
+                btn.disabled = false;
+                btn.style.backgroundColor = '#2563eb';
+                err.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${e.message}`;
+                err.style.display = 'block';
+
+                document.querySelector('.login-card').animate([
+                    { transform: 'translateX(0)' },
+                    { transform: 'translateX(-10px)' },
+                    { transform: 'translateX(10px)' },
+                    { transform: 'translateX(0)' }
+                ], { duration: 300 });
+            }
+        };
+
+        function openForgotModal() {
+            document.getElementById('forgot-username').value = '';
+            document.getElementById('modal-forgot').style.display = 'flex';
+        }
+
+        async function trimiteCerere() {
+            const user = document.getElementById('forgot-username').value.trim();
+            if(!user) { alert("Te rugăm să scrii numele de utilizator!"); return; }
+
+            try {
+                const res = await fetch('/api/request_reset', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: user })
+                });
+                const data = await res.json();
+
+                if(data.succes) {
+                    alert("Cerere trimisă cu succes! Administratorul a fost notificat.");
+                    document.getElementById('modal-forgot').style.display='none';
+                } else {
+                    alert("Eroare: " + data.eroare);
+                }
+            } catch(e) {
+                alert("Eroare de conexiune la server.");
+            }
+        }
+    </script>
+</body>
+</html>

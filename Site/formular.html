@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formular Articol</title>
+    <link rel="icon" type="image/png" href="images/logo_intro.png">
+    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <script>
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+    </script>
+
+    <style>
+        /* 2. STILURI PENTRU BUTONUL DARK MODE */
+        #dark-mode-toggle {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-dark) !important;
+            padding: 0;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-right: 15px;
+            box-shadow: none !important;
+        }
+        #dark-mode-toggle:hover {
+            background-color: var(--border-color);
+            transform: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <header style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display:flex; align-items:center;">
+            <h1>
+                <img src="images/logo_intro.png" alt="Logo" class="header-logo">
+                Administrare Echipament
+            </h1>
+        </div>
+
+        <div style="display:flex; align-items: center;">
+            <button id="dark-mode-toggle" title="Schimbă Modul">
+                <i class="fa-solid fa-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="page-actions">
+            <h2 id="form-title">Încărcare...</h2>
+            <button class="btn btn-cancel" onclick="window.history.back()"><i class="fa-solid fa-arrow-left"></i> Anulează</button>
+        </div>
+
+        <div class="form-container">
+            <form id="main-form">
+                <div class="detalii-grid" id="fields-container"></div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-submit"><i class="fa-solid fa-save"></i> Salvează</button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE = '/api';
+        const params = new URLSearchParams(window.location.search);
+        const type = params.get('type');
+        const id = params.get('id');
+
+        const fieldsEchipament = ['NR_INVENTAR','CATEGORIE','TIP_CALC','NUME_PC','UTILIZATOR','NR_USER','DATA_ACHIZITIE','ETAJ','FUNCTIE','IP','RETEA','SERIE_UC','SERIE_MON','MEMORIE','SISTEM_OPERARE','LICENTA_SO','OFFICE','LICENTA_OFFICE','ANTIVIRUS','CAMERA','TELEFON','PERIFERICE','PARCHET','PASS','OBS'];
+        const fieldsPeriferic = ['NR_INVENTAR','CATEGORIE','TIP','PRODUCATOR','NUME_PERIFERICE','UTILIZATOR','NUME_USER','DATA_ACHIZITIE','NUME_CALC','SERIE_UC','IP','RETEA','MEMORIE','FORMAT','CULOARE_IMPRIMARE','DUPLEX','STARE_PARAMETRI','CAMERA','ANTIVIRUS','PARCHET','PASS','OBS','OBS2'];
+
+        // --- 4. LOGICA FUNCTIONALĂ DARK MODE ---
+        const toggleBtn = document.getElementById('dark-mode-toggle');
+        const icon = toggleBtn.querySelector('i');
+        const html = document.documentElement;
+
+        if (localStorage.getItem('theme') === 'dark') { icon.classList.replace('fa-moon', 'fa-sun'); }
+
+        toggleBtn.addEventListener('click', () => {
+            if (html.getAttribute('data-theme') === 'dark') {
+                html.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+                icon.classList.replace('fa-sun', 'fa-moon');
+            } else {
+                html.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+                icon.classList.replace('fa-moon', 'fa-sun');
+            }
+        });
+        // ---------------------------------------
+
+        // VERIFICARE ADMIN LA ÎNCEPUT
+        fetch(`${API_BASE}/me`)
+            .then(res => res.json())
+            .then(user => {
+                if(!user.logged_in) { window.location.href='login.html'; return; }
+                if(user.role !== 'admin') {
+                    alert("Doar adminii pot edita!");
+                    window.location.href='index.html';
+                } else {
+                    initForm(); // Daca e admin, incarca formularul
+                }
+            })
+            .catch(() => window.location.href='login.html');
+
+        function initForm() {
+            document.getElementById('form-title').innerText = id ? `Editare ${type}` : `Adăugare ${type}`;
+            const container = document.getElementById('fields-container');
+            const fields = (type === 'echipament') ? fieldsEchipament : fieldsPeriferic;
+
+            fields.forEach(f => {
+                let inputType = 'text';
+                if(f.includes('DATA')) inputType = 'date';
+
+                let label = f.replace(/_/g, ' ');
+                let html = `
+                <div class="form-group">
+                    <label>${label}</label>
+                    <input type="${inputType}" name="${f}" ${f==='NR_INVENTAR'?'required':''}>
+                </div>`;
+                container.innerHTML += html;
+            });
+
+            if(id) {
+                const ep = (type === 'echipament') ? 'echipament' : 'periferic';
+                // CODARE URL PENTRU GET
+                fetch(`${API_BASE}/${ep}/${encodeURIComponent(id)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        for (const [key, val] of Object.entries(data)) {
+                            const inp = document.querySelector(`[name="${key}"]`);
+                            if(inp) {
+                                if (key.includes('DATA') && val) {
+                                    try {
+                                        let d = new Date(val);
+                                        if (!isNaN(d.getTime())) {
+                                            const offset = d.getTimezoneOffset();
+                                            d = new Date(d.getTime() - (offset * 60 * 1000));
+                                            inp.value = d.toISOString().split('T')[0];
+                                        } else {
+                                            inp.value = val;
+                                        }
+                                    } catch (e) {
+                                        inp.value = val;
+                                    }
+                                } else {
+                                    inp.value = val;
+                                }
+                            }
+                        }
+                        const nrInv = document.querySelector('[name="NR_INVENTAR"]');
+                        if(nrInv) nrInv.readOnly = true;
+                    });
+            }
+        }
+
+        document.getElementById('main-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const dataObj = Object.fromEntries(formData.entries());
+
+            for (let key in dataObj) {
+                if (typeof dataObj[key] === 'string') dataObj[key] = dataObj[key].trim();
+            }
+
+            if(type==='echipament' && !dataObj.CATEGORIE) dataObj.CATEGORIE='Echipament IT';
+            if(type==='periferic' && !dataObj.CATEGORIE) dataObj.CATEGORIE='Periferic';
+
+            let url = id ? `${API_BASE}/${type === 'echipament' ? 'echipamente' : 'periferice'}/update/${encodeURIComponent(id)}`
+                         : `${API_BASE}/${type === 'echipament' ? 'echipamente' : 'periferice'}/add`;
+            let method = id ? 'PUT' : 'POST';
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(dataObj)
+                });
+                const resp = await res.json();
+
+                if(resp.succes) {
+                    alert("Salvat!");
+                    window.location.href = `detalii.html?id=${encodeURIComponent(dataObj.NR_INVENTAR)}&type=${type}`;
+                } else {
+                    alert("Eroare: " + resp.eroare);
+                }
+            } catch(err) { alert("Eroare server"); }
+        };
+    </script>
+</body>
+</html>
