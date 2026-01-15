@@ -1,617 +1,442 @@
-import os
-import datetime
-import traceback
-import tempfile
-import qrcode
+import os, datetime, tempfile, qrcode, mysql.connector, functools
 from flask import Flask, jsonify, request, make_response, send_from_directory, session
 from fpdf import FPDF
-import mysql.connector
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-import functools
 
-# --- INITIALIZARE FLASK ---
+# --- 1. INIȚIALIZARE ȘI CONFIGURARE ---
+# Creăm aplicația Flask și permitem fișierelor statice (HTML/CSS) să fie servite din folderul curent.
 app = Flask(__name__, static_url_path='', static_folder='.')
-app.secret_key = 'cheie_secreta_foarte_complexa_aici'
-CORS(app)
+app.secret_key = 'cheie_secreta'  # Cheia pentru semnarea sesiunilor (cookies)
+CORS(app)  # Permitem cereri Cross-Origin (utile în dezvoltare)
 
-@app.after_request
-def add_header(response):
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    return response
-
-# --- CONFIGURARE CALE FONT ---
+# Determinăm calea absolută către fontul pentru diacritice
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_PATH = os.path.join(BASE_DIR, 'DejaVuSans.ttf')
 
-# --- CONFIGURARE BAZA DE DATE ---
-data_base = {
+# Datele de conectare la MySQL (PythonAnywhere)
+baza_date = {
     'host': 'moro2004.mysql.pythonanywhere-services.com',
     'database': 'moro2004$it_inventar',
     'user': 'moro2004',
-    'password': 'oB6Nwm42a333ATV',
-    'port': 3306
+    'password': 'oB6Nwm42a333ATV'
 }
 
-def get_db_connection():
-    return mysql.connector.connect(**data_base)
+# --- 2. CONSTANTE PENTRU TABELE ---
+# Definim listele de coloane o singură dată pentru a nu le repeta la fiecare INSERT/UPDATE.
+COLS_ECHIP = ['NR_INVENTAR', 'CATEGORIE', 'TIP_CALC', 'NUME_PC', 'UTILIZATOR', 'NR_USER', 'DATA_ACHIZITIE', 'ETAJ',
+              'FUNCTIE', 'IP', 'RETEA', 'SERIE_UC', 'SERIE_MON', 'MEMORIE', 'SISTEM_OPERARE', 'LICENTA_SO', 'OFFICE',
+              'LICENTA_OFFICE', 'ANTIVIRUS', 'CAMERA', 'TELEFON', 'PERIFERICE', 'PARCHET', 'PASS', 'OBS']
+COLS_PERIF = ['NR_INVENTAR', 'CATEGORIE', 'TIP', 'PRODUCATOR', 'NUME_PERIFERICE', 'UTILIZATOR', 'NUME_USER',
+              'DATA_ACHIZITIE', 'NUME_CALC', 'SERIE_UC', 'IP', 'RETEA', 'MEMORIE', 'FORMAT', 'CULOARE_IMPRIMARE',
+              'DUPLEX', 'STARE_PARAMETRI', 'CAMERA', 'ANTIVIRUS', 'PARCHET', 'PASS', 'OBS', 'OBS2']
 
-# --- DECORATORI ---
+
+# --- 3. FUNCȚII HELPER (OPTIMIZARE) ---
+
+# Funcție universală pentru interogări SQL.
+# Deschide conexiunea, execută query-ul și o închide automat.
+def conectare_baza_date(sql, params=(), one=False, commit=False):
+    conn = mysql.connector.connect(**baza_date)
+    cur = conn.cursor(dictionary=True)  # Rezultatele vin ca dicționare {cheie: valoare}
+    try:
+        cur.execute(sql, params)
+        if commit: conn.commit(); return True  # Pentru INSERT/UPDATE/DELETE
+        return cur.fetchone() if one else cur.fetchall()  # Pentru SELECT
+    except Exception as e:
+        raise e  # Aruncăm eroarea mai departe
+    finally:
+        conn.close()  # Se execută mereu, garantând închiderea conexiunii
+
+
+# Decorator care prinde orice eroare din rute și returnează JSON, ca să nu pice serverul.
+def gestioneaza_erori_api(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            return jsonify({"succes": False, "eroare": str(e)}), 500
+
+    return wrapper
+
+
+# Decorator: Verifică dacă utilizatorul este logat
 def login_required(f):
     @functools.wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session: return jsonify({"eroare": "Neautorizat"}), 401
-        return f(*args, **kwargs)
-    return decorated_function
+    def decorated(*args, **kwargs):
+        return f(*args, **kwargs) if 'user_id' in session else (jsonify({"eroare": "Neautorizat"}), 401)
 
+    return decorated
+
+
+# Decorator: Verifică dacă utilizatorul este Admin
 def admin_required(f):
     @functools.wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session or session.get('role') != 'admin':
-            return jsonify({"eroare": "Doar adminii au acces"}), 403
-        return f(*args, **kwargs)
-    return decorated_function
+    def decorated(*args, **kwargs):
+        return f(*args, **kwargs) if session.get('role') == 'admin' else (jsonify({"eroare": "Acces interzis"}), 403)
 
-# --- CLASA PDF ---
-class ModernPDF(FPDF):
-    def __init__(self, orientation='P', unit='mm', format='A4'):
-        super().__init__(orientation, unit, format)
-        self.font_loaded = False
+    return decorated
+
+
+# Middleware: Dezactivează cache-ul browserului pentru date mereu proaspete
+@app.after_request
+def add_header(r):
+    r.headers.update({"Cache-Control": "no-store", "Pragma": "no-cache", "Expires": "0"})
+    return r
+
+
+# --- 4. CLASA PENTRU GENERARE PDF ---
+class RaportPDF(FPDF):
+    def __init__(self):
+        super().__init__('P', 'mm', 'A4')
+        # Încărcăm fontul cu suport Unicode (Română) dacă există
         if os.path.exists(FONT_PATH):
-            try:
-                self.add_font('DejaVu', '', FONT_PATH, uni=True)
-                self.add_font('DejaVu', 'B', FONT_PATH, uni=True)
-                self.font_loaded = True
-            except: pass
+            self.add_font('DejaVu', '', FONT_PATH, uni=True)
+            self.add_font('DejaVu', 'B', FONT_PATH, uni=True)
+        self.font_fam = 'DejaVu' if os.path.exists(FONT_PATH) else 'Arial'
 
+    # Funcție care pune "-" dacă un câmp e gol
     def safe_text(self, txt):
-        if not txt or str(txt) == 'None' or str(txt) == 'null' or str(txt).strip() == '': return "-"
-        txt = str(txt)
-        if self.font_loaded: return txt
-        return txt.encode('latin-1', 'replace').decode('latin-1')
+        return str(txt) if txt and str(txt).lower() not in ['none', 'null', ''] else "-"
 
+    # Header automat pe fiecare pagină (Banda Albastră)
     def header(self):
-        self.set_fill_color(13, 71, 161)
-        self.rect(0, 0, 210, 5, 'F')
+        self.set_fill_color(13, 71, 161);
+        self.rect(0, 0, 210, 5, 'F');
         self.set_y(10)
-        self.set_font('DejaVu' if self.font_loaded else 'Arial', '', 8)
-        self.set_text_color(100)
-        self.cell(0, 6, self.safe_text('PARCHETUL DE PE LÂNGĂ TRIBUNALUL BRAȘOV | DEPARTAMENT IT'), 0, 1, 'R')
-        self.set_draw_color(200)
-        self.line(10, 18, 200, 18)
+        self.set_font(self.font_fam, '', 8)
+        self.cell(0, 6, 'PARCHETUL DE PE LÂNGĂ TRIBUNALUL BRAȘOV | IT', 0, 1, 'R')
+        self.set_draw_color(200);
+        self.line(10, 18, 200, 18);
         self.ln(5)
 
+    # Footer automat (Data și Nr. Pagină)
     def footer(self):
-        self.set_y(-15)
-        self.set_font('DejaVu' if self.font_loaded else 'Arial', '', 7)
+        self.set_y(-15);
+        self.set_font(self.font_fam, '', 7);
         self.set_text_color(150)
-        data_azi = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
-        self.cell(0, 10, self.safe_text(f'Generat la: {data_azi} | Pagina {self.page_no()}/{{nb}}'), 0, 0, 'C')
+        self.cell(0, 10, f'Generat: {datetime.datetime.now():%d.%m.%Y %H:%M} | Pag {self.page_no()}/{{nb}}', 0, 0, 'C')
 
+    # Desenează un titlu de secțiune cu fundal gri-albastru
     def section_title(self, label):
-        if self.get_y() > 250: self.add_page()
-        self.ln(5)
-        self.set_font('DejaVu' if self.font_loaded else 'Arial', 'B', 12)
-        self.set_fill_color(230, 240, 255)
+        if self.get_y() > 250: self.add_page()  # Pagină nouă dacă nu e loc
+        self.ln(5);
+        self.set_font(self.font_fam, 'B', 12)
+        self.set_fill_color(230, 240, 255);
         self.set_text_color(13, 71, 161)
         self.cell(0, 8, f"  {self.safe_text(label.upper())}", 'L', 1, 'L', True)
-        self.ln(3)
+        self.ln(3);
+        self.set_text_color(0)
 
+    # Desenează un rând de informații: Etichetă (stânga) - Valoare (dreapta)
     def info_row(self, label, value):
         if self.get_y() > 275: self.add_page()
-        self.set_font('DejaVu' if self.font_loaded else 'Arial', '', 9)
+        self.set_font(self.font_fam, '', 9);
         self.set_text_color(100)
-        self.cell(50, 6, self.safe_text(label), 0, 0, 'R')
-        self.set_text_color(0)
-        x = self.get_x(); y = self.get_y()
-        self.multi_cell(140, 6, self.safe_text(value), 0, 'L')
-        self.set_draw_color(240); self.line(x, self.get_y(), 200, self.get_y()); self.ln(1)
+        self.cell(50, 6, label, 0, 0, 'R')  # Eticheta aliniată la dreapta
+        self.set_text_color(0);
+        x = self.get_x()
+        self.multi_cell(140, 6, self.safe_text(value), 0, 'L')  # Valoarea pe mai multe rânduri
+        self.set_draw_color(240);
+        self.line(x, self.get_y(), 200, self.get_y());
+        self.ln(1)
 
-# --- RUTE PENTRU FIȘIERE STATICE ---
+
+# --- 5. RUTE API: AUTHENTICARE ---
 @app.route('/')
 def serve_index(): return send_from_directory('.', 'index.html')
-@app.route('/<path:path>')
-def serve_static_files(path): return send_from_directory('.', path)
 
-# --- AUTENTIFICARE ---
+
+@app.route('/<path:path>')
+def serve_files(path): return send_from_directory('.', path)
+
+
 @app.route('/api/login', methods=['POST'])
+@gestioneaza_erori_api
 def login():
-    d = request.json
-    try:
-        conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM users WHERE username = %s", (d.get('username'),))
-        user = cursor.fetchone(); conn.close()
-        if user and user['username'] == d.get('username') and check_password_hash(user['password'], d.get('password')):
-            session['user_id'] = user['id']; session['username'] = user['username']; session['role'] = user['role']
-            return jsonify({"succes": True, "role": user['role']})
-        else: return jsonify({"succes": False, "eroare": "Utilizator sau parolă incorectă"}), 401
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
+    data = request.json
+    # Căutăm userul în DB
+    user = conectare_baza_date("SELECT * FROM users WHERE username=%s", (data.get('username'),), one=True)
+    # Verificăm parola criptată (Hash)
+    if user and check_password_hash(user['password'], data.get('password')):
+        session.update({'user_id': user['id'], 'username': user['username'], 'role': user['role']})
+        return jsonify({"succes": True, "role": user['role']})
+    return jsonify({"succes": False, "eroare": "Date incorecte"}), 401
+
 
 @app.route('/api/logout', methods=['POST'])
 def logout(): session.clear(); return jsonify({"succes": True})
 
-@app.route('/api/me', methods=['GET'])
-def current_user():
-    if 'user_id' in session: return jsonify({"logged_in": True, "username": session['username'], "role": session['role']})
-    return jsonify({"logged_in": False})
 
-# --- SISTEM NOTIFICĂRI (Resetare pe bază de Username) ---
-
-@app.route('/api/request_reset', methods=['POST'])
-def request_reset_password():
-    username = request.json.get('username')
-    try:
-        conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT id, role FROM users WHERE username = %s", (username,))
-        user = cursor.fetchone()
-
-        if not user:
-            conn.close(); return jsonify({"succes": False, "eroare": "Utilizatorul nu există!"}), 404
-
-        if user['role'] == 'admin' or user['id'] == 1:
-            conn.close()
-            return jsonify({"succes": False, "eroare": "Administratorii nu pot folosi această funcție."}), 403
-
-        cursor.execute("SELECT id FROM reset_requests WHERE user_id = %s", (user['id'],))
-        if cursor.fetchone():
-            conn.close(); return jsonify({"succes": False, "eroare": "Ai trimis deja o cerere!"}), 400
-
-        cursor.execute("INSERT INTO reset_requests (user_id, request_date) VALUES (%s, NOW())", (user['id'],))
-        conn.commit(); conn.close()
-        return jsonify({"succes": True})
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
-
-@app.route('/api/admin/notifications', methods=['GET'])
+# --- 6. RUTE API: ADMINISTRARE UTILIZATORI ---
+@app.route('/api/users')
 @admin_required
-def get_notifications():
-    try:
-        conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-        query = "SELECT r.id, u.username, r.request_date FROM reset_requests r JOIN users u ON r.user_id = u.id ORDER BY r.request_date DESC"
-        cursor.execute(query); reqs = cursor.fetchall(); conn.close()
-        return jsonify(reqs)
-    except Exception as e: return jsonify({"eroare": str(e)}), 500
+@gestioneaza_erori_api
+def lista_utilizatori():
+    return jsonify(conectare_baza_date("SELECT id, username, role FROM users"))
 
-# --- ADMIN USERS ---
-@app.route('/api/users', methods=['GET'])
-@admin_required
-def get_users():
-    try:
-        conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT id, username, role FROM users"); users = cursor.fetchall(); conn.close()
-        return jsonify(users)
-    except Exception as e: return jsonify({"eroare": str(e)}), 500
 
 @app.route('/api/users/add', methods=['POST'])
 @admin_required
+@gestioneaza_erori_api
 def add_user():
     d = request.json
-    try:
-        conn = get_db_connection(); cursor = conn.cursor()
-        pwd = generate_password_hash(d.get('password'))
-        cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)", (d.get('username'), pwd, d.get('role', 'viewer')))
-        conn.commit(); conn.close(); return jsonify({"succes": True})
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
+    # Inserăm user nou cu parola criptată
+    conectare_baza_date("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
+                        (d['username'], generate_password_hash(d['password']), d.get('role', 'viewer')), commit=True)
+    return jsonify({"succes": True})
 
-@app.route('/api/users/update_role/<int:user_id>', methods=['PUT'])
-@admin_required
-def update_user_role(user_id):
-    if user_id == 1: return jsonify({"succes": False, "eroare": "Nu poți modifica Super Admin"}), 400
-    try:
-        conn = get_db_connection(); cursor = conn.cursor()
-        cursor.execute("UPDATE users SET role = %s WHERE id = %s", (request.json.get('role'), user_id))
-        conn.commit(); conn.close(); return jsonify({"succes": True})
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
 
 @app.route('/api/users/delete/<int:id>', methods=['POST'])
 @admin_required
-def delete_user(id):
-    if id == 1 or id == session.get('user_id'): return jsonify({"succes": False, "eroare": "Acțiune interzisă"}), 400
-    try:
-        conn = get_db_connection(); cursor = conn.cursor()
-        cursor.execute("DELETE FROM users WHERE id = %s", (id,))
-        conn.commit(); conn.close(); return jsonify({"succes": True})
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
+@gestioneaza_erori_api
+def del_user(id):
+    # Protecție: Nu ștergem Super Adminul (ID 1) și nici pe noi înșine
+    if id == 1 or id == session.get('user_id'): return jsonify({"eroare": "Interzis"}), 400
+    conectare_baza_date("DELETE FROM users WHERE id=%s", (id,), commit=True)
+    return jsonify({"succes": True})
+# --- VERIFICARE SESIUNE (Lipsea asta!) ---
+@app.route('/api/me', methods=['GET'])
+def verifica_sesiune():
+    if 'user_id' in session:
+        return jsonify({
+            "logged_in": True,
+            "username": session.get('username'),
+            "role": session.get('role')
+        })
+    return jsonify({"logged_in": False})
 
-@app.route('/api/users/reset_password', methods=['POST'])
-@admin_required
-def reset_user_password():
-    d = request.json
-    user_id = d.get('user_id')
-    new_pass = d.get('new_password')
-    if not user_id or not new_pass: return jsonify({"succes": False, "eroare": "Date incomplete"}), 400
-    if user_id == 1 and session.get('user_id') != 1: return jsonify({"succes": False, "eroare": "Nu poți modifica parola Super Adminului"}), 403
-
-    try:
-        conn = get_db_connection(); cursor = conn.cursor()
-        pwd_hash = generate_password_hash(new_pass)
-        cursor.execute("UPDATE users SET password = %s WHERE id = %s", (pwd_hash, user_id))
-        cursor.execute("DELETE FROM reset_requests WHERE user_id = %s", (user_id,))
-        conn.commit(); conn.close()
-        return jsonify({"succes": True})
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
-
-# --- INVENTAR & CĂUTARE AVANSATĂ ---
-@app.route('/api/assets/all', methods=['GET'])
+# --- 7. RUTE API: INVENTAR (CĂUTARE & DETALII) ---
+@app.route('/api/assets/all')
 @login_required
-def get_all_assets():
-    try:
-        nr_inv = request.args.get('nr_inventar', '').strip()
-        user = request.args.get('utilizator', '').strip()
-        locatie = request.args.get('etaj', '').strip()
-        nume = request.args.get('nume', '').strip(); serie = request.args.get('serie', '').strip()
-        ip = request.args.get('ip', '').strip(); tip = request.args.get('tip', '').strip()
+@gestioneaza_erori_api
+def search_echipaments():
+    args = request.args
+    # Interogare UNION pentru a uni Echipamentele cu Perifericele
+    q = "SELECT * FROM (SELECT NR_INVENTAR, CATEGORIE, TIP_CALC AS TIP, NUME_PC AS NUME, UTILIZATOR, ETAJ, IP, SERIE_UC AS SERIE FROM Echipamente UNION SELECT NR_INVENTAR, CATEGORIE, TIP, NUME_PERIFERICE AS NUME, UTILIZATOR, NULL, IP, SERIE_UC FROM Periferice) AS a"
 
-        q1 = "SELECT NR_INVENTAR, CATEGORIE, TIP_CALC AS TIP, NUME_PC AS NUME, UTILIZATOR, ETAJ, IP, SERIE_UC AS SERIE FROM Echipamente"
-        q2 = "SELECT NR_INVENTAR, CATEGORIE, TIP, NUME_PERIFERICE AS NUME, UTILIZATOR, NULL AS ETAJ, IP, SERIE_UC AS SERIE FROM Periferice"
-        query = f"SELECT * FROM ({q1} UNION {q2}) AS assets"
-        where, params = [], []
-        if nr_inv: where.append("NR_INVENTAR LIKE %s"); params.append(f"%{nr_inv}%")
-        if user: where.append("UTILIZATOR LIKE %s"); params.append(f"%{user}%")
-        if locatie: where.append("ETAJ = %s"); params.append(locatie)
-        if nume: where.append("NUME LIKE %s"); params.append(f"%{nume}%")
-        if serie: where.append("SERIE LIKE %s"); params.append(f"%{serie}%")
-        if ip: where.append("IP LIKE %s"); params.append(f"%{ip}%")
-        if tip: where.append("TIP LIKE %s"); params.append(f"%{tip}%")
-        if where: query += " WHERE " + " AND ".join(where)
+    # Construim filtrele dinamic
+    filters = {'nr_inventar': 'NR_INVENTAR LIKE', 'utilizator': 'UTILIZATOR LIKE', 'etaj': 'ETAJ =',
+               'nume': 'NUME LIKE', 'ip': 'IP LIKE'}
+    where, params = [], []
+    for k, op in filters.items():
+        if v := args.get(k, '').strip():
+            where.append(f"{op} %s")
+            params.append(f"%{v}%" if 'LIKE' in op else v)
 
-        conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-        cursor.execute(query, tuple(params)); data = cursor.fetchall(); conn.close()
-        return jsonify(data)
-    except Exception as e: return jsonify({"eroare": str(e)}), 500
+    if where: q += " WHERE " + " AND ".join(where)
+    return jsonify(conectare_baza_date(q, tuple(params)))
 
-@app.route('/api/echipament/<path:nr_inventar>', methods=['GET'])
+
+@app.route('/api/<type>/<path:nr>', methods=['GET'])
 @login_required
-def get_echipament_details(nr_inventar):
-    try:
-        conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM Echipamente WHERE NR_INVENTAR = %s", (nr_inventar.strip(),)); data = cursor.fetchone(); conn.close()
-        return jsonify(data)
-    except Exception as e: return jsonify({"eroare": str(e)}), 500
+@gestioneaza_erori_api
+def item_details(type, nr):
+    # Selectăm tabelul corect în funcție de tip
+    tbl = 'Echipamente' if type == 'echipament' else 'Periferice'
+    return jsonify(conectare_baza_date(f"SELECT * FROM {tbl} WHERE NR_INVENTAR=%s", (nr.strip(),), one=True))
 
-@app.route('/api/periferic/<path:nr_inventar>', methods=['GET'])
-@login_required
-def get_periferic_details(nr_inventar):
-    try:
-        conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM Periferice WHERE NR_INVENTAR = %s", (nr_inventar.strip(),)); data = cursor.fetchone(); conn.close()
-        return jsonify(data)
-    except Exception as e: return jsonify({"eroare": str(e)}), 500
 
-# --- ADAUGARE / EDITARE ---
+# --- 8. FUNCȚIE HELPER PENTRU CRUD (Magic Function) ---
+# Se ocupă automat de INSERT sau UPDATE, verifică duplicatele și asociază valorile cu coloanele
+def verificare_duplicitate(table, cols, data, is_update=False, pk_val=None):
+    # Extragem valorile din JSON în ordinea coloanelor
+    vals = [data.get(c, '').strip() if isinstance(data.get(c), str) else data.get(c) for c in cols]
+
+    if is_update:
+        # Generăm: COL1=%s, COL2=%s...
+        sets = ', '.join([f"{c}=%s" for c in cols])
+        vals.append(pk_val)  # Adăugăm ID-ul la final pentru WHERE
+        conectare_baza_date(f"UPDATE {table} SET {sets} WHERE NR_INVENTAR=%s", vals, commit=True)
+    else:
+        # Verificăm dacă există deja (Duplicate check)
+        if conectare_baza_date(f"SELECT 1 FROM {table} WHERE NR_INVENTAR=%s", (data.get('NR_INVENTAR'),), one=True): return False
+        # Generăm: VALUES (%s, %s, %s...)
+        conectare_baza_date(f"INSERT INTO {table} ({','.join(cols)}) VALUES ({','.join(['%s'] * len(cols))})", vals, commit=True)
+    return True
+
+
+# --- 9. RUTE ADĂUGARE / ACTUALIZARE / ȘTERGERE ---
+# Folosesc funcția crud_save pentru a fi foarte scurte
+
 @app.route('/api/echipamente/add', methods=['POST'])
 @admin_required
-def add_echipament():
-    d = request.json
-    try:
-        conn = get_db_connection(); cursor = conn.cursor()
-        cursor.execute("SELECT NR_INVENTAR FROM Echipamente WHERE NR_INVENTAR = %s", (d.get('NR_INVENTAR','').strip(),))
-        if cursor.fetchone(): conn.close(); return jsonify({"succes": False, "eroare": "Nr. Inventar există deja!"}), 400
-        cols = ['NR_INVENTAR','CATEGORIE','TIP_CALC','NUME_PC','UTILIZATOR','NR_USER','DATA_ACHIZITIE','ETAJ','FUNCTIE','IP','RETEA','SERIE_UC','SERIE_MON','MEMORIE','SISTEM_OPERARE','LICENTA_SO','OFFICE','LICENTA_OFFICE','ANTIVIRUS','CAMERA','TELEFON','PERIFERICE','PARCHET','PASS','OBS']
-        vals = [d.get(c, '').strip() if isinstance(d.get(c), str) else d.get(c) for c in cols]
-        placeholders = ','.join(['%s']*len(cols))
-        cursor.execute(f"INSERT INTO Echipamente ({','.join(cols)}) VALUES ({placeholders})", vals)
-        conn.commit(); conn.close(); return jsonify({"succes": True})
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
+@gestioneaza_erori_api
+def add_eq():
+    return jsonify({"succes": True}) if verificare_duplicitate('Echipamente', COLS_ECHIP, request.json) else (
+        jsonify({"eroare": "Duplicat"}), 400)
+
 
 @app.route('/api/periferice/add', methods=['POST'])
 @admin_required
-def add_periferic():
-    d = request.json
-    try:
-        conn = get_db_connection(); cursor = conn.cursor()
-        cursor.execute("SELECT NR_INVENTAR FROM Periferice WHERE NR_INVENTAR = %s", (d.get('NR_INVENTAR','').strip(),))
-        if cursor.fetchone(): conn.close(); return jsonify({"succes": False, "eroare": "Nr. Inventar există deja!"}), 400
-        cols = ['NR_INVENTAR','CATEGORIE','TIP','PRODUCATOR','NUME_PERIFERICE','UTILIZATOR','NUME_USER','DATA_ACHIZITIE','NUME_CALC','SERIE_UC','IP','RETEA','MEMORIE','FORMAT','CULOARE_IMPRIMARE','DUPLEX','STARE_PARAMETRI','CAMERA','ANTIVIRUS','PARCHET','PASS','OBS','OBS2']
-        vals = [d.get(c, '').strip() if isinstance(d.get(c), str) else d.get(c) for c in cols]
-        placeholders = ','.join(['%s']*len(cols))
-        cursor.execute(f"INSERT INTO Periferice ({','.join(cols)}) VALUES ({placeholders})", vals)
-        conn.commit(); conn.close(); return jsonify({"succes": True})
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
+@gestioneaza_erori_api
+def add_perif():
+    return jsonify({"succes": True}) if verificare_duplicitate('Periferice', COLS_PERIF, request.json) else (
+        jsonify({"eroare": "Duplicat"}), 400)
 
-@app.route('/api/echipamente/update/<path:nr_inv>', methods=['PUT'])
+
+@app.route('/api/echipamente/update/<path:nr>', methods=['PUT'])
 @admin_required
-def update_echipament(nr_inv):
-    d = request.json
-    try:
-        conn = get_db_connection(); cursor = conn.cursor()
-        cols = ['CATEGORIE','TIP_CALC','NUME_PC','UTILIZATOR','NR_USER','DATA_ACHIZITIE','ETAJ','FUNCTIE','IP','RETEA','SERIE_UC','SERIE_MON','MEMORIE','SISTEM_OPERARE','LICENTA_SO','OFFICE','LICENTA_OFFICE','ANTIVIRUS','CAMERA','TELEFON','PERIFERICE','PARCHET','PASS','OBS']
-        sets = ', '.join([f"{c}=%s" for c in cols]); vals = [d.get(c) for c in cols]; vals.append(nr_inv.strip())
-        cursor.execute(f"UPDATE Echipamente SET {sets} WHERE NR_INVENTAR=%s", vals)
-        conn.commit(); conn.close(); return jsonify({"succes": True})
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
+@gestioneaza_erori_api
+def upd_eq(nr):
+    # Excludem Nr Inventar din update (nu se schimbă)
+    verificare_duplicitate('Echipamente', [c for c in COLS_ECHIP if c != 'NR_INVENTAR'], request.json, True, nr.strip())
+    return jsonify({"succes": True})
 
-@app.route('/api/periferice/update/<path:nr_inv>', methods=['PUT'])
+
+@app.route('/api/periferice/update/<path:nr>', methods=['PUT'])
 @admin_required
-def update_periferic(nr_inv):
-    d = request.json
-    try:
-        conn = get_db_connection(); cursor = conn.cursor()
-        cols = ['CATEGORIE','TIP','PRODUCATOR','NUME_PERIFERICE','UTILIZATOR','NUME_USER','DATA_ACHIZITIE','NUME_CALC','SERIE_UC','IP','RETEA','MEMORIE','FORMAT','CULOARE_IMPRIMARE','DUPLEX','STARE_PARAMETRI','CAMERA','ANTIVIRUS','PARCHET','PASS','OBS','OBS2']
-        sets = ', '.join([f"{c}=%s" for c in cols]); vals = [d.get(c) for c in cols]; vals.append(nr_inv.strip())
-        cursor.execute(f"UPDATE Periferice SET {sets} WHERE NR_INVENTAR=%s", vals)
-        conn.commit(); conn.close(); return jsonify({"succes": True})
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
+@gestioneaza_erori_api
+def upd_perif(nr):
+    verificare_duplicitate('Periferice', [c for c in COLS_PERIF if c != 'NR_INVENTAR'], request.json, True, nr.strip())
+    return jsonify({"succes": True})
 
-@app.route('/api/assets/delete/<path:nr_inventar>', methods=['POST'])
+
+@app.route('/api/assets/delete/<path:nr>', methods=['POST'])
 @admin_required
-def delete_asset(nr_inventar):
-    try:
-        conn = get_db_connection(); cursor = conn.cursor(); nr = nr_inventar.strip()
-        cursor.execute("DELETE FROM Echipamente WHERE NR_INVENTAR = %s", (nr,))
-        r1 = cursor.rowcount
-        cursor.execute("DELETE FROM Periferice WHERE NR_INVENTAR = %s", (nr,))
-        r2 = cursor.rowcount
-        conn.commit(); conn.close()
-        return jsonify({"succes": True}) if r1 or r2 else (jsonify({"eroare": "Negăsit"}), 404)
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
+@gestioneaza_erori_api
+def del_art(nr):
+    # Ștergem din ambele tabele pentru siguranță
+    conectare_baza_date("DELETE FROM Echipamente WHERE NR_INVENTAR=%s", (nr,), commit=True)
+    conectare_baza_date("DELETE FROM Periferice WHERE NR_INVENTAR=%s", (nr,), commit=True)
+    return jsonify({"succes": True})
 
-# --- INTERVENTII ---
-@app.route('/api/interventii/<path:nr_inventar>', methods=['GET'])
+
+# --- 10. INTERVENȚII ---
+@app.route('/api/interventii/<path:nr>')
 @login_required
-def get_interventii(nr_inventar):
-    try:
-        conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM Interventii WHERE NR_INVENTAR = %s ORDER BY DATA_INTERVENTIE DESC", (nr_inventar.strip(),))
-        data = cursor.fetchall(); conn.close(); return jsonify(data)
-    except Exception as e: return jsonify({"eroare": str(e)}), 500
+@gestioneaza_erori_api
+def get_istoric_interventii(nr):
+    return jsonify(
+        conectare_baza_date("SELECT * FROM Interventii WHERE NR_INVENTAR=%s ORDER BY DATA_INTERVENTIE DESC", (nr.strip(),)))
+
 
 @app.route('/api/interventii/add', methods=['POST'])
 @admin_required
-def add_interventie():
+@gestioneaza_erori_api
+def add_int():
     d = request.json
+    conectare_baza_date(
+        "INSERT INTO Interventii (NR_INVENTAR, TIP_ECHIPAMENT, DATA_INTERVENTIE, TIP_INTERVENTIE, TIP_OPERATIE, DESCRIERE_INTERVENTIE, componente_schimbate_adaugate, DURATA_INTERVENTIE, OPERATOR, OBSERVATII) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        (d.get('NR_INVENTAR'), d.get('TIP_ECHIPAMENT'), d.get('DATA_INTERVENTIE'), d.get('TIP_INTERVENTIE'),
+         d.get('TIP_OPERATIE'), d.get('DESCRIERE_INTERVENTIE'), d.get('componente_schimbate_adaugate'),
+         d.get('DURATA_INTERVENTIE'), d.get('OPERATOR'), d.get('OBSERVATII')), commit=True)
+    return jsonify({"succes": True})
+
+
+# --- 11. GENERARE ETICHETĂ QR ---
+@app.route('/api/print_label/<path:nr>', methods=['GET'])
+def genereaza_qr(nr):
     try:
-        sql = """INSERT INTO Interventii (NR_INVENTAR, TIP_ECHIPAMENT, DATA_INTERVENTIE, TIP_INTERVENTIE, TIP_OPERATIE, DESCRIERE_INTERVENTIE, componente_schimbate_adaugate, DURATA_INTERVENTIE, OPERATOR, OBSERVATII) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
-        val = (d.get('NR_INVENTAR','').strip(), d.get('TIP_ECHIPAMENT'), d.get('DATA_INTERVENTIE'), d.get('TIP_INTERVENTIE'), d.get('TIP_OPERATIE'), d.get('DESCRIERE_INTERVENTIE'), d.get('componente_schimbate_adaugate'), d.get('DURATA_INTERVENTIE'), d.get('OPERATOR'), d.get('OBSERVATII'))
-        conn = get_db_connection(); cursor = conn.cursor(); cursor.execute(sql, val); conn.commit(); conn.close()
-        return jsonify({"succes": True}), 201
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
+        # Căutăm echipamentul
+        item = conectare_baza_date(
+            "SELECT * FROM Echipamente WHERE NR_INVENTAR=%s UNION SELECT * FROM Periferice WHERE NR_INVENTAR=%s",
+            (nr, nr), one=True)
+        if not item: return jsonify({"eroare": "404"}), 404
 
-@app.route('/api/interventii/update/<int:id_int>', methods=['PUT'])
-@admin_required
-def update_interventie(id_int):
-    d = request.json
-    try:
-        sql = """UPDATE Interventii SET NR_INVENTAR=%s, DATA_INTERVENTIE=%s, TIP_INTERVENTIE=%s, TIP_OPERATIE=%s, DESCRIERE_INTERVENTIE=%s, componente_schimbate_adaugate=%s, DURATA_INTERVENTIE=%s, OPERATOR=%s, OBSERVATII=%s WHERE ID_INTERVENTIE=%s"""
-        val = (d.get('NR_INVENTAR'), d.get('DATA_INTERVENTIE'), d.get('TIP_INTERVENTIE'), d.get('TIP_OPERATIE'), d.get('DESCRIERE_INTERVENTIE'), d.get('componente_schimbate_adaugate'), d.get('DURATA_INTERVENTIE'), d.get('OPERATOR'), d.get('OBSERVATII'), id_int)
-        conn = get_db_connection(); cursor = conn.cursor(); cursor.execute(sql, val); conn.commit(); conn.close()
-        return jsonify({"succes": True})
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
+        # Generăm QR Code cu link
+        qr = qrcode.make(
+            f"{request.host_url}detalii.html?id={nr}&type={'periferic' if 'NUME_PERIFERICE' in item else 'echipament'}",
+            box_size=6, border=2)
+        temp = tempfile.NamedTemporaryFile(suffix='.png', delete=False);
+        qr.save(temp.name)
 
-@app.route('/api/interventii/delete/<int:id_int>', methods=['POST'])
-@admin_required
-def delete_interventie(id_int):
-    try:
-        conn = get_db_connection(); cursor = conn.cursor(); cursor.execute("DELETE FROM Interventii WHERE ID_INTERVENTIE=%s", (id_int,)); conn.commit(); conn.close()
-        return jsonify({"succes": True})
-    except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
-
-# --- GENERARE ETICHETA QR (MODIFICAT) ---
-@app.route('/api/print_label/<path:nr_inventar>', methods=['GET'])
-def print_qr_label(nr_inventar):
-    try:
-        nr = nr_inventar.strip()
-        conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM Echipamente WHERE NR_INVENTAR = %s", (nr,))
-        item = cursor.fetchone()
-        if not item:
-            cursor.execute("SELECT * FROM Periferice WHERE NR_INVENTAR = %s", (nr,))
-            item = cursor.fetchone()
-        conn.close()
-
-        if not item: return jsonify({"eroare": "Nu s-a găsit echipamentul"}), 404
-
-        # 1. Link (URL-ul paginii)
-        tip_url = 'periferic' if 'NUME_PERIFERICE' in item else 'echipament'
-        full_url = f"{request.host_url}detalii.html?id={nr}&type={tip_url}"
-
-        # 2. Generare QR (Micșorat box_size)
-        qr = qrcode.QRCode(box_size=6, border=2)
-        qr.add_data(full_url)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-
-        # Salvare temporară
-        temp_qr = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-        img.save(temp_qr.name)
-
-        # 3. Generare PDF Mic (Etichetă 60x90mm Landscape - Width=90, Height=60)
-        pdf = FPDF('L', 'mm', (60, 90))
-
-        # --- REPARATIE: Margini mici si fara AutoPageBreak ---
-        pdf.set_margins(2, 2, 2)
-        pdf.set_auto_page_break(False)
+        # Generăm PDF 60x90mm
+        pdf = FPDF('L', 'mm', (60, 90));
+        pdf.set_margins(2, 2, 2);
+        pdf.set_auto_page_break(False);
         pdf.add_page()
-
-        # --- A. TITLU (Sus) ---
-        pdf.set_font('Arial', 'B', 8)
-        pdf.set_xy(0, 3)
-        pdf.cell(90, 4, 'PARCHETUL DE PE LANGA TRIBUNALUL BRASOV', 0, 0, 'C')
-
-        # --- B. QR CODE (Mijloc) ---
-        # Calculam pozitia X pentru centrare: (90 - 28) / 2 = 31
-        pdf.image(temp_qr.name, x=31, y=8, w=28)
-
-        # --- C. TEXT PRINCIPAL (Jos - Nr Inventar) ---
-        # Pozitia Y: 8 + 28 + 2 = 38
-        pdf.set_y(38)
-        pdf.set_font('Arial', 'B', 14)
+        pdf.set_font('Arial', 'B', 8);
+        pdf.cell(90, 4, 'PARCHETUL DE PE LANGA TRIBUNALUL BRASOV', 0, 1, 'C')
+        pdf.image(temp.name, x=31, y=8, w=28)  # QR Centrat
+        pdf.set_y(38);
+        pdf.set_font('Arial', 'B', 14);
         pdf.cell(0, 6, str(nr), 0, 1, 'C')
 
-        # --- D. NUME ECHIPAMENT (Sub numar) ---
-        pdf.set_font('Arial', '', 7)
-        nume_display = item.get('NUME_PC') or item.get('NUME_PERIFERICE') or '-'
-        try:
-            nume_display = nume_display.encode('latin-1', 'replace').decode('latin-1')
-        except: pass
-        pdf.cell(0, 4, str(nume_display)[:30], 0, 1, 'C')
+        # Curățenie
+        temp.close();
+        os.unlink(temp.name)
+        return make_response(pdf.output(dest='S'), 200,
+                             {'Content-Type': 'application/pdf', 'Content-Disposition': f'inline; filename=L_{nr}.pdf'})
+    except Exception as e:
+        return jsonify({"eroare": str(e)}), 500
 
-        temp_qr.close(); os.unlink(temp_qr.name)
 
-        out = pdf.output(dest='S')
-        if isinstance(out, str): out = out.encode('latin-1')
-        res = make_response(out)
-        res.headers['Content-Type'] = 'application/pdf'
-        res.headers['Content-Disposition'] = f'inline; filename=Label_{nr}.pdf'
-        return res
-
-    except Exception as e: return jsonify({"eroare": str(e)}), 500
-
-# --- GENERARE PDF FIȘĂ ---
-@app.route('/api/print/<path:nr_inventar>', methods=['GET'])
-def print_pdf(nr_inventar):
+# --- 12. GENERARE FIȘĂ INVENTAR (Complexă) ---
+@app.route('/api/print/<path:nr>', methods=['GET'])
+def genereaza_pdf(nr):
     try:
-        conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
-        nr = nr_inventar.strip()
-        cursor.execute("SELECT * FROM Echipamente WHERE NR_INVENTAR = %s", (nr,))
-        item = cursor.fetchone(); tip_articol = 'echipament'
+        # Identificăm tipul și datele
+        item = conectare_baza_date("SELECT * FROM Echipamente WHERE NR_INVENTAR=%s", (nr,), one=True)
+        tipo, lst = ('echipament', COLS_ECHIP) if item else ('periferic', COLS_PERIF)
         if not item:
-            cursor.execute("SELECT * FROM Periferice WHERE NR_INVENTAR = %s", (nr,))
-            item = cursor.fetchone(); tip_articol = 'periferic'
-        if not item: return jsonify({"eroare": "Negăsit"}), 404
+            item = conectare_baza_date("SELECT * FROM Periferice WHERE NR_INVENTAR=%s", (nr,), one=True)
+            if not item: return jsonify({"eroare": "Negasit"}), 404
 
-        cursor.execute("SELECT * FROM Interventii WHERE NR_INVENTAR = %s ORDER BY DATA_INTERVENTIE DESC", (nr,))
-        interventii = cursor.fetchall(); conn.close()
+        interv = conectare_baza_date("SELECT * FROM Interventii WHERE NR_INVENTAR=%s ORDER BY DATA_INTERVENTIE DESC", (nr,))
 
-        # ... (LISTELE DE CÂMPURI RĂMÂN LA FEL, LE POȚI PĂSTRA PE ALE TALE SAU COPIA DE AICI) ...
-        campuri_echipament = [
-            ("Nr. Inventar", "NR_INVENTAR"), ("Categorie", "CATEGORIE"), ("Tip Calc", "TIP_CALC"),
-            ("Nume PC", "NUME_PC"), ("Utilizator", "UTILIZATOR"), ("Nr. User", "NR_USER"),
-            ("Data Achiziție", "DATA_ACHIZITIE"), ("Etaj", "ETAJ"), ("Funcție", "FUNCTIE"),
-            ("IP", "IP"), ("Rețea", "RETEA"), ("Serie UC", "SERIE_UC"), ("Serie Monitor", "SERIE_MON"),
-            ("Memorie", "MEMORIE"), ("Sistem Operare", "SISTEM_OPERARE"), ("Licență SO", "LICENTA_SO"),
-            ("Office", "OFFICE"), ("Licență Office", "LICENTA_OFFICE"), ("Antivirus", "ANTIVIRUS"),
-            ("Cameră", "CAMERA"), ("Telefon", "TELEFON"), ("Periferice", "PERIFERICE"),
-            ("Parchet", "PARCHET"), ("Pass", "PASS"), ("Obs", "OBS")
-        ]
-        campuri_periferic = [
-            ("Nr. Inventar", "NR_INVENTAR"), ("Categorie", "CATEGORIE"), ("Tip", "TIP"),
-            ("Producător", "PRODUCATOR"), ("Nume Periferice", "NUME_PERIFERICE"),
-            ("Nume Calc", "NUME_CALC"), ("Utilizator", "UTILIZATOR"), ("Nume User", "NUME_USER"),
-            ("Data Achiziție", "DATA_ACHIZITIE"), ("Serie UC", "SERIE_UC"), ("IP", "IP"),
-            ("Rețea", "RETEA"), ("Memorie", "MEMORIE"), ("Format", "FORMAT"),
-            ("Culoare Impr.", "CULOARE_IMPRIMARE"), ("Duplex", "DUPLEX"),
-            ("Stare Parametri", "STARE_PARAMETRI"), ("Cameră", "CAMERA"), ("Antivirus", "ANTIVIRUS"),
-            ("Parchet", "PARCHET"), ("Pass", "PASS"), ("Obs", "OBS"), ("Obs2", "OBS2")
-        ]
-
-        lista = campuri_echipament if tip_articol == 'echipament' else campuri_periferic
-        pdf = ModernPDF(); pdf.alias_nb_pages(); pdf.add_page()
-        pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", 'B', 22)
+        # Inițializăm PDF
+        pdf = RaportPDF();
+        pdf.alias_nb_pages();
+        pdf.add_page();
+        pdf.set_font(pdf.font_fam, 'B', 22)
         pdf.cell(0, 15, pdf.safe_text(f"FIȘĂ INVENTAR: {item['NR_INVENTAR']}"), 0, 1, 'C')
 
+        # Scriem datele generale
         pdf.section_title("DATE ARTICOL")
-        for et, k in lista:
-            val = item.get(k)
-            if val and str(val).strip() != '' and str(val) != 'None': pdf.info_row(et, val)
+        for k in lst:
+            if val := item.get(k): pdf.info_row(k, val)
 
-        # --- TABEL ISTORIC INTERVENȚII (FIXAT) ---
-        pdf.add_page(); pdf.section_title("ISTORIC INTERVENȚII")
-        if interventii:
-            # Configurare lățimi coloane (Total ~190mm)
-            # Data | Tip | Operatie | Detalii | Operator
-            cw = [25, 25, 40, 70, 30]
-            headers = ["Data", "Tip", "Operație", "Detalii (Descriere, Obs)", "Operator"]
+        # Desenăm Tabelul de Intervenții (partea complexă)
+        pdf.add_page();
+        pdf.section_title("ISTORIC INTERVENȚII")
+        cw, headers = [25, 25, 40, 70, 30], ["Data", "Tip", "Operație", "Detalii", "Operator"]
+        pdf.set_font(pdf.font_fam, 'B', 9);
+        pdf.set_fill_color(220, 220, 220)
+        # Header tabel
+        for i, h in enumerate(headers): pdf.cell(cw[i], 8, pdf.safe_text(h), 1, 0, 'C', True)
+        pdf.ln();
+        pdf.set_font(pdf.font_fam, '', 8)
 
-            pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", 'B', 9)
-            pdf.set_fill_color(220, 220, 220)
+        if not interv: pdf.cell(0, 10, "Fără intervenții.", 0, 1, 'L')
+        for r in interv:
+            # Pregătim datele pentru rând
+            vals = [str(r.get(k, '-')) for k in ['DATA_INTERVENTIE', 'TIP_INTERVENTIE', 'TIP_OPERATIE']]
+            vals.append(
+                f"{r.get('DESCRIERE_INTERVENTIE', '-')}\nComp: {r.get('componente_schimbate_adaugate', '')}\nObs: {r.get('OBSERVATII', '')}")
+            vals.append(str(r.get('OPERATOR', '-')))
 
-            # Header
-            for i, h in enumerate(headers):
-                pdf.cell(cw[i], 8, pdf.safe_text(h), 1, 0, 'C', True)
-            pdf.ln()
+            # Calculăm înălțimea necesară (wrap text)
+            y_s = pdf.get_y()
+            pdf.set_xy(10 + sum(cw[:3]), y_s);
+            pdf.multi_cell(cw[3], 5, pdf.safe_text(vals[3]), 0, 'L')
+            h_row = max(pdf.get_y() - y_s, 8)
 
-            pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", '', 8)
+            # Page Break dacă e nevoie
+            if y_s + h_row > 275: pdf.add_page(); y_s = pdf.get_y()
 
-            for r in interventii:
-                # Pregătire date
-                data_str = str(r.get('DATA_INTERVENTIE','-'))
-                tip_str = str(r.get('TIP_INTERVENTIE','-'))
-                op_str = str(r.get('TIP_OPERATIE','-'))
-                desc_str = f"{r.get('DESCRIERE_INTERVENTIE','-')}\nComp: {r.get('componente_schimbate_adaugate','')}\nDurata: {r.get('DURATA_INTERVENTIE','-')} | Obs: {r.get('OBSERVATII','')}"
-                user_str = str(r.get('OPERATOR','-'))
+            # Desenăm rândul efectiv
+            pdf.set_y(y_s);
+            x = 10
+            for i, txt in enumerate(vals):
+                pdf.set_xy(x, y_s)
+                # Logică pentru coloanele MultiCell vs Simple Cell
+                if i == 3:
+                    pdf.multi_cell(cw[i], 5, pdf.safe_text(txt), 0, 'L'); pdf.set_xy(x, y_s); pdf.cell(cw[i], h_row, "",
+                                                                                                       1)
+                elif i == 2:
+                    pdf.multi_cell(cw[i], 5, pdf.safe_text(txt), 0, 'C'); pdf.set_xy(x, y_s); pdf.cell(cw[i], h_row, "",
+                                                                                                       1)
+                else:
+                    pdf.cell(cw[i], h_row, pdf.safe_text(txt), 1, 0, 'C')
+                x += cw[i]
+            pdf.set_y(y_s + h_row)
 
-                # Calculăm înălțimea rândului.
-                # Trebuie să vedem care coloană are nevoie de cel mai mult spațiu (Op sau Detalii)
+        return make_response(pdf.output(dest='S'), 200, {'Content-Type': 'application/pdf',
+                                                         'Content-Disposition': f'inline; filename=Fisa_{nr}.pdf'})
+    except Exception as e:
+        return jsonify({"eroare": str(e)}), 500
 
-                # Salvăm poziția Y de start
-                y_start = pdf.get_y()
 
-                # 1. Simulăm scrierea coloanei 'Operație' pentru a vedea înălțimea
-                pdf.set_xy(10 + cw[0] + cw[1], y_start) # Mutăm la col 3
-                pdf.multi_cell(cw[2], 5, pdf.safe_text(op_str), 0, 'C')
-                h_op = pdf.get_y() - y_start
-
-                # 2. Simulăm scrierea coloanei 'Detalii'
-                pdf.set_xy(10 + cw[0] + cw[1] + cw[2], y_start) # Mutăm la col 4
-                pdf.multi_cell(cw[3], 5, pdf.safe_text(desc_str), 0, 'L')
-                h_det = pdf.get_y() - y_start
-
-                # Înălțimea rândului este maximul dintre cele două + o margine
-                h_row = max(h_op, h_det, 8)
-
-                # Verificăm dacă mai e loc pe pagină, altfel Page Break
-                if (y_start + h_row) > 275:
-                    pdf.add_page()
-                    # Retipărim header (opțional, dar arată bine)
-                    pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", 'B', 9)
-                    pdf.set_fill_color(220, 220, 220)
-                    for i, h in enumerate(headers):
-                        pdf.cell(cw[i], 8, pdf.safe_text(h), 1, 0, 'C', True)
-                    pdf.ln()
-                    pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", '', 8)
-                    y_start = pdf.get_y()
-
-                # --- DESENAREA EFECTIVĂ ---
-                # Resetăm Y la începutul rândului
-                pdf.set_y(y_start)
-                x_curr = 10 # Marginea stângă standard FPDF este 10mm
-
-                # Col 1: Data
-                pdf.set_xy(x_curr, y_start)
-                pdf.cell(cw[0], h_row, pdf.safe_text(data_str), 1, 0, 'C')
-
-                # Col 2: Tip
-                x_curr += cw[0]
-                pdf.set_xy(x_curr, y_start)
-                pdf.cell(cw[1], h_row, pdf.safe_text(tip_str), 1, 0, 'C')
-
-                # Col 3: Operație (MultiCell cu chenar corect)
-                x_curr += cw[1]
-                pdf.set_xy(x_curr, y_start)
-                # Desenăm conținutul
-                pdf.multi_cell(cw[2], 5, pdf.safe_text(op_str), 0, 'C')
-                # Desenăm chenarul peste (ca să aibă înălțimea full h_row)
-                pdf.set_xy(x_curr, y_start)
-                pdf.cell(cw[2], h_row, "", 1, 0)
-
-                # Col 4: Detalii (MultiCell cu chenar corect)
-                x_curr += cw[2]
-                pdf.set_xy(x_curr, y_start)
-                pdf.multi_cell(cw[3], 5, pdf.safe_text(desc_str), 0, 'L')
-                pdf.set_xy(x_curr, y_start)
-                pdf.cell(cw[3], h_row, "", 1, 0)
-
-                # Col 5: Operator
-                x_curr += cw[3]
-                pdf.set_xy(x_curr, y_start)
-                pdf.cell(cw[4], h_row, pdf.safe_text(user_str), 1, 0, 'C')
-
-                # Mutăm cursorul jos pentru următorul rând
-                pdf.set_y(y_start + h_row)
-
-        else:
-            pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", '', 10)
-            pdf.cell(0, 10, pdf.safe_text("Nu există intervenții înregistrate."), 0, 1, 'L')
-
-        out = pdf.output(dest='S');
-        if isinstance(out, str): out = out.encode('latin-1')
-        res = make_response(out)
-        res.headers['Content-Type'] = 'application/pdf'
-        res.headers['Content-Disposition'] = f'inline; filename=Fisa_{nr_inventar}.pdf'
-        return res
-    except Exception as e: return jsonify({"eroare": str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == '__main__': app.run(debug=True)
