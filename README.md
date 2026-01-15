@@ -82,8 +82,8 @@ Pentru a testa aplicația pe mașina locală (fără server cloud):
 
 1.  **Clonează repository-ul:**
     ```bash
-    git clone [(https://github.com/Bogdy007/Proiect-SDA.git)]
-    cd nume-repo
+    git clone [https://github.com/Bogdy007/Proiect-SDA.git](https://github.com/Bogdy007/Proiect-SDA.git)
+    cd Proiect-SDA
     ```
 
 2.  **Instalează dependențele:**
