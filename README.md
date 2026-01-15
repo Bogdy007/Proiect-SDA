@@ -82,7 +82,7 @@ Pentru a testa aplicația pe mașina locală (fără server cloud):
 
 1.  **Clonează repository-ul:**
     ```bash
-    git clone [https://github.com/userul-tau/nume-repo.git](https://github.com/userul-tau/nume-repo.git)
+    git clone [(https://github.com/Bogdy007/Proiect-SDA.git)]
     cd nume-repo
     ```
 
