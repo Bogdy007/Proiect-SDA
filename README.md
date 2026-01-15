@@ -50,19 +50,29 @@ Proiectul este găzduit în cloud pe infrastructura **PythonAnywhere** și utili
 | **Deployment** | PythonAnywhere | Configurare WSGI pe server Nginx. |
 
 ---
+<details>
+  <summary><strong>🔍 Apasă aici pentru a vedea capturile de ecran</strong></summary>
+  <br>
+📸 Capturi de Ecran
+<img width="1508" height="771" alt="Screenshot 2026-01-15 at 22 06 46" src="https://github.com/user-attachments/assets/d3349a61-2a96-4072-b789-4456fa2ac330" />
+<img width="1267" height="623" alt="Screenshot 2026-01-15 at 22 06 54" src="https://github.com/user-attachments/assets/b9167809-4a70-4d3f-8f02-12e7c15208d7" />
+<img width="1512" height="779" alt="Screenshot 2026-01-15 at 22 07 08" src="https://github.com/user-attachments/assets/df6a058c-8b34-4c2e-8824-f9df66241674" />
+<img width="1512" height="771" alt="Screenshot 2026-01-15 at 22 07 17" src="https://github.com/user-attachments/assets/e0dcc6e1-cc3d-4fed-868e-5462737230a1" />
+<img width="1512" height="770" alt="Screenshot 2026-01-15 at 22 07 53" src="https://github.com/user-attachments/assets/03eca0bd-5fe4-4689-8552-7533d98f8932" />
+<img width="1512" height="774" alt="Screenshot 2026-01-15 at 22 08 09" src="https://github.com/user-attachments/assets/8064efa3-b94e-4dea-8a74-a1ce1fabf072" />
+<img width="1512" height="755" alt="Screenshot 2026-01-15 at 22 08 17" src="https://github.com/user-attachments/assets/9f1e4d84-ef09-47f4-8464-c34bef40add6" />
+<img width="1512" height="766" alt="Screenshot 2026-01-15 at 22 08 24" src="https://github.com/user-attachments/assets/a4aa6e3b-a1cc-4ead-b8b8-3899b6419232" />
+<img width="1512" height="767" alt="Screenshot 2026-01-15 at 22 08 41" src="https://github.com/user-attachments/assets/f2cb4704-2125-47b8-97d3-47aa012f6a0e" />
+<img width="1512" height="770" alt="Screenshot 2026-01-15 at 22 08 49" src="https://github.com/user-attachments/assets/9baf4527-ac8e-4ec5-a6ae-81db3545bdb8" />
+<img width="1150" height="325" alt="Screenshot 2026-01-15 at 22 09 06" src="https://github.com/user-attachments/assets/b2d5d94c-3f8b-49be-a94e-e689ebffe630" />
+<img width="1512" height="774" alt="Screenshot 2026-01-15 at 22 09 13" src="https://github.com/user-attachments/assets/810fb4b8-2f38-43e6-ab99-3d29e69c59bf" />
+<img width="1510" height="780" alt="Screenshot 2026-01-15 at 22 09 43" src="https://github.com/user-attachments/assets/9940e303-7252-4e16-814f-a77ee234db48" />
+<img width="1512" height="778" alt="Screenshot 2026-01-15 at 22 09 50" src="https://github.com/user-attachments/assets/742b8e9d-8efd-4c3d-86aa-40ac2b381101" />
 
-## 📸 Capturi de Ecran
+<br>
+</details>
 
-<img width="1484" height="732" alt="Screenshot 2025-12-29 at 22 39 47" src="https://github.com/user-attachments/assets/3ffb7b20-3699-482e-bd9a-21d21167781c" />
-<img width="1469" height="753" alt="Screenshot 2025-12-29 at 22 39 37" src="https://github.com/user-attachments/assets/caa28f18-ca95-4991-a86c-d2725c090b63" />
-<img width="1499" height="749" alt="Screenshot 2025-12-29 at 22 39 22" src="https://github.com/user-attachments/assets/e310980f-659c-4a9b-ac56-a6b5299b026b" />
-<img width="1489" height="753" alt="Screenshot 2025-12-29 at 22 38 32" src="https://github.com/user-attachments/assets/e91b47d6-5239-4549-96bf-6807c5c4688c" />
-<img width="444" height="768" alt="Screenshot 2025-12-29 at 22 38 19" src="https://github.com/user-attachments/assets/c47f8ec5-f257-4a0a-8b0c-954f639905e7" />
-<img width="1510" height="853" alt="Screenshot 2025-12-29 at 22 31 15" src="https://github.com/user-attachments/assets/09496ffc-c8e2-47fc-ac33-1314b4dff78c" />
-<img width="1512" height="853" alt="Screenshot 2025-12-29 at 22 31 05" src="https://github.com/user-attachments/assets/f560ee1b-950a-47dd-bd40-8fdef5807eef" />
-<img width="1481" height="853" alt="Screenshot 2025-12-29 at 22 30 58" src="https://github.com/user-attachments/assets/8ec05e42-4736-4bb4-8b56-5857caef2d08" />
-<img width="1475" height="756" alt="Screenshot 2025-12-29 at 22 29 44" src="https://github.com/user-attachments/assets/d490800e-a352-40bc-ace8-3bedb7848b68" />
-<img width="1494" height="758" alt="Screenshot 2025-12-29 at 22 29 29" src="https://github.com/user-attachments/assets/b45698e2-502f-4e8f-b86f-c8bd735fef14" />
+
 
 ---
 
