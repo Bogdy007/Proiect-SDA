@@ -87,7 +87,10 @@ class ModernPDF(FPDF):
         self.set_y(-15)
         self.set_font('DejaVu' if self.font_loaded else 'Arial', '', 7)
         self.set_text_color(150)
-        self.cell(0, 10, self.safe_text(f'Pagina {self.page_no()}/{{nb}}'), 0, 0, 'C')
+        timp_ro = datetime.datetime.now() + datetime.timedelta(hours=2)
+        data_azi = timp_ro.strftime("%d.%m.%Y %H:%M")
+
+        self.cell(0, 10, self.safe_text(f'Generat la: {data_azi} | Pagina {self.page_no()}/{{nb}}'), 0, 0, 'C')
 
     def section_title(self, label):
         if self.get_y() > 250: self.add_page()
