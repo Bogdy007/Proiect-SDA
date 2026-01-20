@@ -1,4 +1,4 @@
-# 🖥️ Sistem Integrat de Gestiune a Inventarului IT
+#  Sistem Integrat de Gestiune a Inventarului IT
 
 > O aplicație web Full-Stack modernă pentru digitalizarea, administrarea și urmărirea infrastructurii IT, dezvoltată pentru **Parchetul de pe lângă Tribunalul Brașov**.
 
@@ -17,7 +17,7 @@ Proiectul este găzduit în cloud pe infrastructura **PythonAnywhere** și utili
 
 ---
 
-## ✨ Funcționalități Cheie
+##  Funcționalități Cheie
 
 ### 1. 📱 Smart QR & Deep Linking
 * **Scanare Inteligentă:** Fiecare echipament are o etichetă QR unică. Scanarea cu telefonul deschide instant fișa tehnică.
@@ -76,7 +76,7 @@ Proiectul este găzduit în cloud pe infrastructura **PythonAnywhere** și utili
 
 ---
 
-## 🚀 Instalare și Rulare Locală
+##  Instalare și Rulare Locală
 
 Pentru a testa aplicația pe mașina locală (fără server cloud):
 
