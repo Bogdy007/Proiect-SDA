@@ -87,8 +87,7 @@ class ModernPDF(FPDF):
         self.set_y(-15)
         self.set_font('DejaVu' if self.font_loaded else 'Arial', '', 7)
         self.set_text_color(150)
-        data_azi = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
-        self.cell(0, 10, self.safe_text(f'Generat la: {data_azi} | Pagina {self.page_no()}/{{nb}}'), 0, 0, 'C')
+        self.cell(0, 10, self.safe_text(f'Pagina {self.page_no()}/{{nb}}'), 0, 0, 'C')
 
     def section_title(self, label):
         if self.get_y() > 250: self.add_page()
@@ -137,8 +136,7 @@ def current_user():
     if 'user_id' in session: return jsonify({"logged_in": True, "username": session['username'], "role": session['role']})
     return jsonify({"logged_in": False})
 
-# --- SISTEM NOTIFICĂRI (Resetare pe bază de Username) ---
-
+# --- SISTEM NOTIFICĂRI ---
 @app.route('/api/request_reset', methods=['POST'])
 def request_reset_password():
     username = request.json.get('username')
@@ -146,18 +144,13 @@ def request_reset_password():
         conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT id, role FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
-
         if not user:
             conn.close(); return jsonify({"succes": False, "eroare": "Utilizatorul nu există!"}), 404
-
         if user['role'] == 'admin' or user['id'] == 1:
-            conn.close()
-            return jsonify({"succes": False, "eroare": "Administratorii nu pot folosi această funcție."}), 403
-
+            conn.close(); return jsonify({"succes": False, "eroare": "Administratorii nu pot folosi această funcție."}), 403
         cursor.execute("SELECT id FROM reset_requests WHERE user_id = %s", (user['id'],))
         if cursor.fetchone():
             conn.close(); return jsonify({"succes": False, "eroare": "Ai trimis deja o cerere!"}), 400
-
         cursor.execute("INSERT INTO reset_requests (user_id, request_date) VALUES (%s, NOW())", (user['id'],))
         conn.commit(); conn.close()
         return jsonify({"succes": True})
@@ -222,7 +215,6 @@ def reset_user_password():
     new_pass = d.get('new_password')
     if not user_id or not new_pass: return jsonify({"succes": False, "eroare": "Date incomplete"}), 400
     if user_id == 1 and session.get('user_id') != 1: return jsonify({"succes": False, "eroare": "Nu poți modifica parola Super Adminului"}), 403
-
     try:
         conn = get_db_connection(); cursor = conn.cursor()
         pwd_hash = generate_password_hash(new_pass)
@@ -279,7 +271,7 @@ def get_periferic_details(nr_inventar):
         return jsonify(data)
     except Exception as e: return jsonify({"eroare": str(e)}), 500
 
-# --- ADAUGARE / EDITARE ---
+# --- ADAUGARE / EDITARE / STERGERE (MODIFICAT) ---
 @app.route('/api/echipamente/add', methods=['POST'])
 @admin_required
 def add_echipament():
@@ -335,16 +327,20 @@ def update_periferic(nr_inv):
     except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
 
 @app.route('/api/assets/delete/<path:nr_inventar>', methods=['POST'])
+@login_required
 @admin_required
 def delete_asset(nr_inventar):
     try:
         conn = get_db_connection(); cursor = conn.cursor(); nr = nr_inventar.strip()
+
+        cursor.execute("DELETE FROM Interventii WHERE NR_INVENTAR = %s", (nr,))
+        # ------------------------------------------------------------------
+
         cursor.execute("DELETE FROM Echipamente WHERE NR_INVENTAR = %s", (nr,))
-        r1 = cursor.rowcount
         cursor.execute("DELETE FROM Periferice WHERE NR_INVENTAR = %s", (nr,))
-        r2 = cursor.rowcount
+
         conn.commit(); conn.close()
-        return jsonify({"succes": True}) if r1 or r2 else (jsonify({"eroare": "Negăsit"}), 404)
+        return jsonify({"succes": True})
     except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
 
 # --- INTERVENTII ---
@@ -387,7 +383,7 @@ def delete_interventie(id_int):
         return jsonify({"succes": True})
     except Exception as e: return jsonify({"succes": False, "eroare": str(e)}), 500
 
-# --- GENERARE ETICHETA QR (MODIFICAT) ---
+# --- GENERARE ETICHETA QR ---
 @app.route('/api/print_label/<path:nr_inventar>', methods=['GET'])
 def print_qr_label(nr_inventar):
     try:
@@ -412,34 +408,28 @@ def print_qr_label(nr_inventar):
         qr.make(fit=True)
         img = qr.make_image(fill_color="black", back_color="white")
 
-        # Salvare temporară
         temp_qr = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
         img.save(temp_qr.name)
 
-        # 3. Generare PDF Mic (Etichetă 60x90mm Landscape - Width=90, Height=60)
+        # 3. Generare PDF Mic (Etichetă 60x90mm Landscape)
         pdf = FPDF('L', 'mm', (60, 90))
-
-        # --- REPARATIE: Margini mici si fara AutoPageBreak ---
         pdf.set_margins(2, 2, 2)
         pdf.set_auto_page_break(False)
         pdf.add_page()
 
-        # --- A. TITLU (Sus) ---
         pdf.set_font('Arial', 'B', 8)
         pdf.set_xy(0, 3)
         pdf.cell(90, 4, 'PARCHETUL DE PE LANGA TRIBUNALUL BRASOV', 0, 0, 'C')
 
-        # --- B. QR CODE (Mijloc) ---
-        # Calculam pozitia X pentru centrare: (90 - 28) / 2 = 31
+        # Calcul pozitie X QR: (90 - 28) / 2 = 31
         pdf.image(temp_qr.name, x=31, y=8, w=28)
 
-        # --- C. TEXT PRINCIPAL (Jos - Nr Inventar) ---
-        # Pozitia Y: 8 + 28 + 2 = 38
+        # Text Principal (Jos - Nr Inventar)
         pdf.set_y(38)
         pdf.set_font('Arial', 'B', 14)
         pdf.cell(0, 6, str(nr), 0, 1, 'C')
 
-        # --- D. NUME ECHIPAMENT (Sub numar) ---
+        # Nume Echipament (Sub numar)
         pdf.set_font('Arial', '', 7)
         nume_display = item.get('NUME_PC') or item.get('NUME_PERIFERICE') or '-'
         try:
@@ -458,7 +448,7 @@ def print_qr_label(nr_inventar):
 
     except Exception as e: return jsonify({"eroare": str(e)}), 500
 
-# --- GENERARE PDF FIȘĂ ---
+# --- GENERARE PDF FIȘĂ (CU WRAP LA TEXT) ---
 @app.route('/api/print/<path:nr_inventar>', methods=['GET'])
 def print_pdf(nr_inventar):
     try:
@@ -474,7 +464,6 @@ def print_pdf(nr_inventar):
         cursor.execute("SELECT * FROM Interventii WHERE NR_INVENTAR = %s ORDER BY DATA_INTERVENTIE DESC", (nr,))
         interventii = cursor.fetchall(); conn.close()
 
-        # ... (LISTELE DE CÂMPURI RĂMÂN LA FEL, LE POȚI PĂSTRA PE ALE TALE SAU COPIA DE AICI) ...
         campuri_echipament = [
             ("Nr. Inventar", "NR_INVENTAR"), ("Categorie", "CATEGORIE"), ("Tip Calc", "TIP_CALC"),
             ("Nume PC", "NUME_PC"), ("Utilizator", "UTILIZATOR"), ("Nr. User", "NR_USER"),
@@ -506,18 +495,15 @@ def print_pdf(nr_inventar):
             val = item.get(k)
             if val and str(val).strip() != '' and str(val) != 'None': pdf.info_row(et, val)
 
-        # --- TABEL ISTORIC INTERVENȚII (FIXAT) ---
+        # --- TABEL ISTORIC INTERVENȚII ---
         pdf.add_page(); pdf.section_title("ISTORIC INTERVENȚII")
         if interventii:
-            # Configurare lățimi coloane (Total ~190mm)
-            # Data | Tip | Operatie | Detalii | Operator
             cw = [25, 25, 40, 70, 30]
             headers = ["Data", "Tip", "Operație", "Detalii (Descriere, Obs)", "Operator"]
 
             pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", 'B', 9)
             pdf.set_fill_color(220, 220, 220)
 
-            # Header
             for i, h in enumerate(headers):
                 pdf.cell(cw[i], 8, pdf.safe_text(h), 1, 0, 'C', True)
             pdf.ln()
@@ -525,36 +511,26 @@ def print_pdf(nr_inventar):
             pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", '', 8)
 
             for r in interventii:
-                # Pregătire date
                 data_str = str(r.get('DATA_INTERVENTIE','-'))
                 tip_str = str(r.get('TIP_INTERVENTIE','-'))
                 op_str = str(r.get('TIP_OPERATIE','-'))
                 desc_str = f"{r.get('DESCRIERE_INTERVENTIE','-')}\nComp: {r.get('componente_schimbate_adaugate','')}\nDurata: {r.get('DURATA_INTERVENTIE','-')} | Obs: {r.get('OBSERVATII','')}"
                 user_str = str(r.get('OPERATOR','-'))
 
-                # Calculăm înălțimea rândului.
-                # Trebuie să vedem care coloană are nevoie de cel mai mult spațiu (Op sau Detalii)
-
-                # Salvăm poziția Y de start
                 y_start = pdf.get_y()
 
-                # 1. Simulăm scrierea coloanei 'Operație' pentru a vedea înălțimea
-                pdf.set_xy(10 + cw[0] + cw[1], y_start) # Mutăm la col 3
+                pdf.set_xy(10 + cw[0] + cw[1], y_start)
                 pdf.multi_cell(cw[2], 5, pdf.safe_text(op_str), 0, 'C')
                 h_op = pdf.get_y() - y_start
 
-                # 2. Simulăm scrierea coloanei 'Detalii'
-                pdf.set_xy(10 + cw[0] + cw[1] + cw[2], y_start) # Mutăm la col 4
+                pdf.set_xy(10 + cw[0] + cw[1] + cw[2], y_start)
                 pdf.multi_cell(cw[3], 5, pdf.safe_text(desc_str), 0, 'L')
                 h_det = pdf.get_y() - y_start
 
-                # Înălțimea rândului este maximul dintre cele două + o margine
                 h_row = max(h_op, h_det, 8)
 
-                # Verificăm dacă mai e loc pe pagină, altfel Page Break
                 if (y_start + h_row) > 275:
                     pdf.add_page()
-                    # Retipărim header (opțional, dar arată bine)
                     pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", 'B', 9)
                     pdf.set_fill_color(220, 220, 220)
                     for i, h in enumerate(headers):
@@ -563,42 +539,32 @@ def print_pdf(nr_inventar):
                     pdf.set_font("DejaVu" if pdf.font_loaded else "Arial", '', 8)
                     y_start = pdf.get_y()
 
-                # --- DESENAREA EFECTIVĂ ---
-                # Resetăm Y la începutul rândului
                 pdf.set_y(y_start)
-                x_curr = 10 # Marginea stângă standard FPDF este 10mm
+                x_curr = 10
 
-                # Col 1: Data
                 pdf.set_xy(x_curr, y_start)
                 pdf.cell(cw[0], h_row, pdf.safe_text(data_str), 1, 0, 'C')
 
-                # Col 2: Tip
                 x_curr += cw[0]
                 pdf.set_xy(x_curr, y_start)
                 pdf.cell(cw[1], h_row, pdf.safe_text(tip_str), 1, 0, 'C')
 
-                # Col 3: Operație (MultiCell cu chenar corect)
                 x_curr += cw[1]
                 pdf.set_xy(x_curr, y_start)
-                # Desenăm conținutul
                 pdf.multi_cell(cw[2], 5, pdf.safe_text(op_str), 0, 'C')
-                # Desenăm chenarul peste (ca să aibă înălțimea full h_row)
                 pdf.set_xy(x_curr, y_start)
                 pdf.cell(cw[2], h_row, "", 1, 0)
 
-                # Col 4: Detalii (MultiCell cu chenar corect)
                 x_curr += cw[2]
                 pdf.set_xy(x_curr, y_start)
                 pdf.multi_cell(cw[3], 5, pdf.safe_text(desc_str), 0, 'L')
                 pdf.set_xy(x_curr, y_start)
                 pdf.cell(cw[3], h_row, "", 1, 0)
 
-                # Col 5: Operator
                 x_curr += cw[3]
                 pdf.set_xy(x_curr, y_start)
                 pdf.cell(cw[4], h_row, pdf.safe_text(user_str), 1, 0, 'C')
 
-                # Mutăm cursorul jos pentru următorul rând
                 pdf.set_y(y_start + h_row)
 
         else:
